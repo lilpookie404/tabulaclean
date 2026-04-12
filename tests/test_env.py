@@ -11,6 +11,8 @@ from tabular_cleaning_env.tasks import TASKS
 
 OPEN_INTERVAL_MIN = SCORE_MIN
 OPEN_INTERVAL_MAX = SCORE_MAX
+TASK_SCORE_MIN = 0.0
+TASK_SCORE_MAX = 1.0
 REWARD_MIN = 0.01
 
 
@@ -238,4 +240,32 @@ def test_workflow_actions_do_not_inflate_task_score() -> None:
         if result.done:
             break
     assert grade_task(TASKS["easy_contacts_cleanup"], env.state.current_table) == env.state.current_score
+    env.close()
+
+
+def test_all_reset_scores_stay_inside_open_interval() -> None:
+    env = TabularCleaningEnvironment()
+    for task_id in TASKS:
+        observation = env.reset(task_id=task_id)
+        assert TASK_SCORE_MIN < observation.current_score_estimate < TASK_SCORE_MAX
+    env.close()
+
+
+def test_export_quality_index_stays_inside_open_interval_for_all_tasks() -> None:
+    env = TabularCleaningEnvironment()
+    for task_id in TASKS:
+        observation = env.reset(task_id=task_id)
+        payload = observation.model_dump(exclude_none=True)
+        executed = set()
+        result = observation
+        while True:
+            action = inference.fallback_action_from_observation(payload, executed)
+            executed.add(inference._action_signature(action))
+            result = env.step(action)
+            payload = result.model_dump(exclude_none=True)
+            if result.done:
+                break
+        quality_index = env.state.export_artifacts["data_quality_report"]["quality_index"]
+        assert TASK_SCORE_MIN < quality_index < TASK_SCORE_MAX
+        assert quality_index == env.state.current_score
     env.close()
