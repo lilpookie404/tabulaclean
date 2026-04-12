@@ -28,6 +28,7 @@ class ActionType(str, Enum):
     FILL_MISSING = "fill_missing"
     CAST_DTYPE = "cast_dtype"
     DROP_DUPLICATES = "drop_duplicates"
+    FILL_FORWARD = "fill_forward"
     SORT_ROWS = "sort_rows"
     SUBMIT = "submit"
 

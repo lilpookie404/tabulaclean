@@ -1,0 +1,41 @@
+{
+  "task_id": "xgb_churn_easy",
+  "difficulty": "easy",
+  "domain": "commerce ML",
+  "source_system": "crm_rfm_export",
+  "rule_pack_name": "xgb_churn_prep_pack",
+  "description": "Prepare CRM RFM data for churn modeling by normalizing customer segments, standardizing purchase dates, filling missing frequency counts, and casting monetary values into a model-ready table.",
+  "raw_row_count": 10,
+  "ground_truth_row_count": 10,
+  "expected_columns": [
+    "customer_id",
+    "recency_days",
+    "frequency",
+    "monetary",
+    "segment",
+    "churned",
+    "last_purchase_date"
+  ],
+  "required_columns": [
+    "customer_id",
+    "recency_days",
+    "frequency",
+    "monetary",
+    "segment",
+    "churned",
+    "last_purchase_date"
+  ],
+  "primary_key": [
+    "customer_id"
+  ],
+  "date_columns": {
+    "last_purchase_date": false
+  },
+  "validation_rules": {
+    "required_fields_present": "All churn modeling fields are populated.",
+    "schema_matches": "Schema matches the churn modeling feature table.",
+    "dates_canonical": "Purchase dates use the canonical YYYY-MM-DD format.",
+    "cast_columns_numeric_non_negative": "Numeric modeling fields are valid and non-negative."
+  },
+  "max_steps": 14
+}

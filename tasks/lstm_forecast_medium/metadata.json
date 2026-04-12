@@ -1,0 +1,37 @@
+{
+  "task_id": "lstm_forecast_medium",
+  "difficulty": "medium",
+  "domain": "commerce ML",
+  "source_system": "ecommerce_sales_export",
+  "rule_pack_name": "lstm_timeseries_prep_pack",
+  "description": "Prepare a product sales time-series for demand forecasting by standardizing dates, forward-filling missing quantities, and normalizing category labels.",
+  "raw_row_count": 10,
+  "ground_truth_row_count": 10,
+  "expected_columns": [
+    "date",
+    "product_id",
+    "quantity_sold",
+    "revenue",
+    "category"
+  ],
+  "required_columns": [
+    "date",
+    "product_id",
+    "quantity_sold",
+    "revenue",
+    "category"
+  ],
+  "primary_key": [
+    "date",
+    "product_id"
+  ],
+  "date_columns": {
+    "date": false
+  },
+  "validation_rules": {
+    "required_fields_present": "All forecasting fields are populated.",
+    "schema_matches": "Schema matches the forecasting feature table.",
+    "dates_canonical": "Date values use the canonical YYYY-MM-DD format."
+  },
+  "max_steps": 15
+}

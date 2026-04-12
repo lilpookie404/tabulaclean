@@ -4,3 +4,10 @@ type: space
 runtime: fastapi
 app: server.app:app
 port: 8000
+tasks:
+  - easy_contacts_cleanup
+  - medium_orders_cleanup
+  - hard_appointments_cleanup
+  - xgb_churn_easy
+  - lstm_forecast_medium
+  - lightfm_recs_hard

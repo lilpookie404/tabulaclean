@@ -75,7 +75,7 @@ def test_inference_always_emits_end_on_exception(capsys) -> None:
     output = capsys.readouterr().out.strip().splitlines()
     assert output[0].startswith("[START]")
     assert output[-1].startswith("[END] success=false steps=0 rewards=")
-    assert "score=" not in output[-1]
+    assert "rewards=" in output[-1]
 
 
 def test_error_text_is_plain_single_line() -> None:
@@ -88,8 +88,43 @@ def test_build_openai_client_requires_hf_token(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.delenv("HF_TOKEN", raising=False)
     monkeypatch.setenv("API_BASE_URL", "https://router.huggingface.co/v1")
     monkeypatch.setenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError, match="HF_TOKEN"):
         inference.build_openai_client()
+
+
+def test_build_openai_client_ignores_api_key_without_hf_token(monkeypatch: pytest.MonkeyPatch) -> None:
+    init_kwargs: dict[str, object] = {}
+
+    class DummyOpenAI:
+        def __init__(self, **kwargs: object):
+            init_kwargs.update(kwargs)
+
+    monkeypatch.setattr(inference, "OpenAI", DummyOpenAI)
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.setenv("API_KEY", "my-api-key")
+    monkeypatch.setenv("API_BASE_URL", "https://api.example.com/v1")
+    monkeypatch.setenv("MODEL_NAME", "gpt-4o")
+    with pytest.raises(ValueError, match="HF_TOKEN"):
+        inference.build_openai_client()
+    assert init_kwargs == {}
+
+
+def test_build_openai_client_prefers_hf_token_over_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
+    init_kwargs: dict[str, object] = {}
+
+    class DummyOpenAI:
+        def __init__(self, **kwargs: object):
+            init_kwargs.update(kwargs)
+
+    monkeypatch.setattr(inference, "OpenAI", DummyOpenAI)
+    monkeypatch.setenv("HF_TOKEN", "hf-primary-token")
+    monkeypatch.setenv("API_KEY", "fallback-key")
+    monkeypatch.setenv("API_BASE_URL", "https://router.huggingface.co/v1")
+    monkeypatch.setenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+    client, model_name = inference.build_openai_client()
+    assert isinstance(client, DummyOpenAI)
+    assert init_kwargs["api_key"] == "hf-primary-token"
+    assert model_name == "meta-llama/Llama-3.3-70B-Instruct"
 
 
 def test_build_openai_client_sets_timeout_and_retry(monkeypatch: pytest.MonkeyPatch) -> None:

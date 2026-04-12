@@ -4,3 +4,4 @@ uvicorn>=0.30.0
 requests>=2.32.0
 websockets>=15.0.1
 openai>=1.52.0
+openenv-core @ git+https://github.com/meta-pytorch/OpenEnv.git@c719decf2b19175d5ca35301d58a14c83e985480

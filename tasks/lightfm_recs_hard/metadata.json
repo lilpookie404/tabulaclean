@@ -1,0 +1,38 @@
+{
+  "task_id": "lightfm_recs_hard",
+  "difficulty": "hard",
+  "domain": "commerce ML",
+  "source_system": "recommendation_engine_export",
+  "rule_pack_name": "lightfm_interaction_prep_pack",
+  "description": "Prepare a user-item interaction table for recommendation modeling by resolving mixed-case user identifiers, standardizing timestamps, filling missing ratings, and casting the interaction strength column.",
+  "raw_row_count": 10,
+  "ground_truth_row_count": 10,
+  "expected_columns": [
+    "user_id",
+    "item_id",
+    "rating",
+    "timestamp",
+    "category"
+  ],
+  "required_columns": [
+    "user_id",
+    "item_id",
+    "rating",
+    "timestamp",
+    "category"
+  ],
+  "primary_key": [
+    "user_id",
+    "item_id"
+  ],
+  "date_columns": {
+    "timestamp": false
+  },
+  "validation_rules": {
+    "required_fields_present": "All interaction fields are populated.",
+    "schema_matches": "Schema matches the recommendation interaction table.",
+    "dates_canonical": "Interaction timestamps use the canonical YYYY-MM-DD format.",
+    "cast_columns_numeric_non_negative": "Ratings are numeric and non-negative."
+  },
+  "max_steps": 18
+}

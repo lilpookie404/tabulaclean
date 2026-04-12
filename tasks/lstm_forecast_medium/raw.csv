@@ -1,0 +1,11 @@
+date,product_id,quantity_sold,revenue,category
+2024/01/01,P001,10,120,footwear
+01/02/2024,P001,12,144," footwear "
+2024-01-03,P001,,156,FOOTWEAR
+04-01-2024,P001,15,180,footwear
+2024/01/01,P002,5,90,accessories
+01/02/2024,P002,,95," accessories "
+2024-01-03,P002,7,126,ACCESSORIES
+04-01-2024,P002,,133,accessories
+2024/01/01,P003,20,400," home goods "
+01/02/2024,P003,22,440,HOME GOODS

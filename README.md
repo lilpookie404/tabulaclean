@@ -1,5 +1,5 @@
 ---
-title: Commerce Ops Cleanup Workbench
+title: Commerce Data Readiness Suite
 emoji: "📦"
 colorFrom: blue
 colorTo: indigo
@@ -7,11 +7,11 @@ sdk: docker
 app_port: 8000
 ---
 
-# openenv-tabular-cleaning
+# openenv-tabular-cleaning-2
 
-`tabular_cleaning_env` is a deterministic OpenEnv environment for a **commerce data operations cleanup workbench**.
+`tabular_cleaning_env` is a deterministic OpenEnv environment for a **commerce data readiness suite**.
 
-It simulates a very real workflow inside ops, analytics, revops, and support teams: a messy export comes in from a business system, an agent profiles it, applies structured cleanup actions, gets risky changes reviewed, runs validations, and publishes an audited clean table for downstream use.
+It simulates a real workflow inside ops, analytics, and ML teams: messy business exports arrive, an agent profiles them, applies structured cleanup actions, gets risky changes reviewed, runs validations, and publishes audited tables that are ready for either downstream operations or model training.
 
 This is a governed data-cleaning workflow built around the standard OpenEnv API.
 
@@ -39,11 +39,11 @@ The environment models a realistic internal workflow:
 6. export a cleaned artifact bundle
 7. publish the final table
 
-That is the core product story: **a human-in-the-loop data cleanup workbench for commerce operations**.
+That is the core product story: **a human-in-the-loop commerce data readiness workbench**.
 
 ## Design Goals
 
-- The task models a concrete operational workflow.
+- The task suite models a concrete commerce data-readiness workflow.
 - Grading is deterministic and transparent.
 - Reward shaping is dense and bounded.
 - The action space is structured, typed, and safe.
@@ -68,13 +68,16 @@ Core implementation files:
 
 ## Bundled Tasks
 
-The benchmark ships exactly 3 tasks with increasing difficulty.
+The benchmark ships 6 bundled tasks across two coherent tracks.
 
 | Task | Difficulty | Source System | Rows | What the agent must do |
 |---|---|---|---|---|
 | `easy_contacts_cleanup` | Easy | CRM customer contacts export | `18` raw / `18` gold | Fix schema drift, normalize names/emails/customer segments, standardize signup dates, fill missing phones, validate, export, publish |
 | `medium_orders_cleanup` | Medium | E-commerce orders export | `20` raw / `16` gold | Normalize statuses and dates, cast amounts, fill missing location fields, remove true duplicates, validate, export, publish |
 | `hard_appointments_cleanup` | Hard | Field-service scheduling export | `20` raw / `16` gold | Normalize technician and service-line labels, standardize timestamps, fill missing values, resolve duplicate conflicts deterministically, validate, export, publish |
+| `xgb_churn_easy` | Easy | CRM RFM feature export | `10` raw / `10` gold | Normalize segments, standardize purchase dates, fill missing frequency values, cast monetary features, validate, export, publish |
+| `lstm_forecast_medium` | Medium | Product sales time-series export | `10` raw / `10` gold | Standardize dates, forward-fill missing quantities, normalize categories, validate, export, publish |
+| `lightfm_recs_hard` | Hard | Recommendation interaction export | `10` raw / `10` gold | Normalize user IDs and categories, standardize timestamps, fill missing ratings, cast interaction strengths, validate, export, publish |
 
 Step budgets:
 
@@ -96,6 +99,9 @@ Task folders:
 - [easy_contacts_cleanup](tasks/easy_contacts_cleanup)
 - [medium_orders_cleanup](tasks/medium_orders_cleanup)
 - [hard_appointments_cleanup](tasks/hard_appointments_cleanup)
+- [xgb_churn_easy](tasks/xgb_churn_easy)
+- [lstm_forecast_medium](tasks/lstm_forecast_medium)
+- [lightfm_recs_hard](tasks/lightfm_recs_hard)
 
 Example dataset files:
 
@@ -105,12 +111,18 @@ Example dataset files:
 - Orders cleaned reference: [tasks/medium_orders_cleanup/ground_truth.csv](tasks/medium_orders_cleanup/ground_truth.csv)
 - Service scheduling raw export: [tasks/hard_appointments_cleanup/raw.csv](tasks/hard_appointments_cleanup/raw.csv)
 - Service scheduling cleaned reference: [tasks/hard_appointments_cleanup/ground_truth.csv](tasks/hard_appointments_cleanup/ground_truth.csv)
+- Churn features raw export: [tasks/xgb_churn_easy/raw.csv](tasks/xgb_churn_easy/raw.csv)
+- Forecasting raw export: [tasks/lstm_forecast_medium/raw.csv](tasks/lstm_forecast_medium/raw.csv)
+- Recommendation interactions raw export: [tasks/lightfm_recs_hard/raw.csv](tasks/lightfm_recs_hard/raw.csv)
 
 Current dataset sizes:
 
 - contacts task: `18` raw rows and `18` gold rows
 - orders task: `20` raw rows and `16` gold rows
 - service scheduling task: `20` raw rows and `16` gold rows
+- churn modeling task: `10` raw rows and `10` gold rows
+- forecasting task: `10` raw rows and `10` gold rows
+- recommendation task: `10` raw rows and `10` gold rows
 
 Example dataset preview:
 
@@ -137,6 +149,8 @@ APT-001,"maya singh "," delivery ",alex cole,"2024/04/10 09:30",confirmed," gate
 
 These are curated bundled datasets on purpose: they are large enough to feel like real cleanup work, still deterministic to grade, and still light enough to validate quickly in Docker or on Hugging Face Spaces.
 
+The six tasks stay coherent because they all use the same governed workflow: profile the export, apply typed cleanup actions, review risky changes, validate, export, and publish. The difference is only the downstream destination of the cleaned data.
+
 ## Action Space
 
 The action space is typed and intentionally narrow.
@@ -161,6 +175,7 @@ Inspection and cleanup actions:
 - `replace_values`
 - `standardize_date`
 - `fill_missing`
+- `fill_forward`
 - `cast_dtype`
 - `drop_duplicates`
 - `sort_rows`
@@ -277,8 +292,9 @@ Reproducible baseline scores:
 ### Local setup
 
 ```bash
-python3 -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
+python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements-dev.txt
 python3 -m pytest -q
 uvicorn server.app:app --host 0.0.0.0 --port 8000
@@ -292,6 +308,8 @@ export MODEL_NAME="meta-llama/Llama-3.3-70B-Instruct"
 export HF_TOKEN="<your-hf-token>"
 python3 inference.py
 ```
+
+`HF_TOKEN` is required. For local contract checks, a placeholder token is enough because the script falls back to the deterministic planner after transport/auth failures.
 
 ### Example client usage
 
@@ -312,10 +330,13 @@ env.close()
 Local validation commands:
 
 ```bash
-python3 -m uv lock --python 3.11
-python3 -m uv run --python 3.11 openenv validate
-python3 -m uv run --python 3.11 pytest
+python3 -m pytest -q
+python3 inference.py
+docker build -t tabular-cleaning-env .
+openenv validate http://localhost:8000
 ```
+
+If the `openenv` CLI is not available on your machine, validate through the Docker image first. The repository includes `tabular_cleaning_env/openenv_compat.py` for local development fallback, but the submission target is the official OpenEnv runtime installed in the Python 3.11 / Docker environment.
 
 The project includes the core runtime files:
 
@@ -348,8 +369,12 @@ This project is designed for a containerized Hugging Face Space:
 1. create a Docker Space
 2. push this repository
 3. let the Space build from the root `Dockerfile`
-4. confirm the Space is `Running`
-5. validate the public runtime
+4. add Space settings before first boot:
+   - `HF_TOKEN` as a Secret
+   - `API_BASE_URL` as a Variable if overriding the default
+   - `MODEL_NAME` as a Variable if overriding the default
+5. confirm the Space is `Running`
+6. validate the public runtime
 
 ```bash
 python3 -m uv run --python 3.11 openenv validate https://<your-space>.hf.space

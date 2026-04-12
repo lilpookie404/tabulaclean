@@ -45,6 +45,7 @@ class TabularCleaningEnvironment(Environment):
         ActionType.REPLACE_VALUES,
         ActionType.STANDARDIZE_DATE,
         ActionType.FILL_MISSING,
+        ActionType.FILL_FORWARD,
         ActionType.CAST_DTYPE,
         ActionType.DROP_DUPLICATES,
         ActionType.SORT_ROWS,
@@ -52,6 +53,7 @@ class TabularCleaningEnvironment(Environment):
     RISKY_ACTION_TYPES = {
         ActionType.RENAME_COLUMN,
         ActionType.FILL_MISSING,
+        ActionType.FILL_FORWARD,
         ActionType.CAST_DTYPE,
         ActionType.DROP_DUPLICATES,
     }
@@ -223,6 +225,13 @@ class TabularCleaningEnvironment(Environment):
                 columns = [action.column] if action.column else list(self._task.fill_defaults.keys())
                 for column in columns:
                     self._fill_missing(column, action.fill_value)
+            elif action.action_type == ActionType.FILL_FORWARD:
+                columns = [action.column] if action.column else list(self._task.fill_forward_columns)
+                if not columns:
+                    raise ValueError("fill_forward requires column or fill_forward_columns in task definition")
+                for column in columns:
+                    self._require_existing_column(column)
+                    self._fill_forward(column)
             elif action.action_type == ActionType.CAST_DTYPE:
                 if action.dtype is None:
                     raise ValueError("cast_dtype requires dtype")
@@ -616,6 +625,30 @@ class TabularCleaningEnvironment(Environment):
                 if not invalid
                 else "Some technician fields are still blank.",
             )
+        if check_id == "cast_columns_numeric_non_negative":
+            invalid_cells: list[tuple[str, object]] = []
+            for col, dtype in self._task.cast_columns.items():
+                if dtype in ("float", "int") and col in self._current_columns():
+                    for row in self._table:
+                        val = row.get(col)
+                        if val is None or not isinstance(val, (int, float)) or float(val) < 0:
+                            invalid_cells.append((col, val))
+            return (
+                not invalid_cells,
+                "All numeric columns are valid and non-negative."
+                if not invalid_cells
+                else f"{len(invalid_cells)} invalid numeric cell(s) found.",
+            )
+        if check_id == "duplicates_resolved":
+            if self._task.duplicate_rule is None:
+                return True, "No duplicate rule defined; check passes by default."
+            dup_count = self._duplicate_key_count()
+            return (
+                dup_count == 0,
+                "All duplicate business keys have been resolved."
+                if dup_count == 0
+                else f"{dup_count} duplicate business key(s) remain.",
+            )
         return True, "Validation rule not implemented explicitly; treated as passed."
 
     def _export_cleaned_table(self, destination: str | None) -> Dict[str, Any]:
@@ -708,6 +741,13 @@ class TabularCleaningEnvironment(Environment):
                 "risk_category": "medium",
                 "confidence": 0.72,
                 "reason": "Imputing missing values changes source completeness.",
+            }
+        if action.action_type == ActionType.FILL_FORWARD:
+            return {
+                "review_required": True,
+                "risk_category": "medium",
+                "confidence": 0.7,
+                "reason": "Forward-fill propagates earlier observations into missing rows.",
             }
         if action.action_type == ActionType.CAST_DTYPE:
             return {
@@ -839,6 +879,16 @@ class TabularCleaningEnvironment(Environment):
             if is_missing(row.get(column)):
                 row[column] = fill_value
 
+    def _fill_forward(self, column: str) -> None:
+        last_valid = None
+        for row in self._table:
+            value = row.get(column)
+            if is_missing(value):
+                if last_valid is not None:
+                    row[column] = last_valid
+            else:
+                last_valid = value
+
     def _cast_column(self, column: str, dtype: str) -> None:
         for row in self._table:
             value = row.get(column)
@@ -914,6 +964,10 @@ class TabularCleaningEnvironment(Environment):
             safe.append(ActionType.STANDARDIZE_DATE.value)
         if self._task.fill_defaults:
             risky.extend(f"{ActionType.FILL_MISSING.value}:{column}" for column in self._task.fill_defaults if column in current_columns)
+        if self._task.fill_forward_columns:
+            for column in self._task.fill_forward_columns:
+                if column in current_columns and any(is_missing(row.get(column)) for row in self._table):
+                    risky.append(f"{ActionType.FILL_FORWARD.value}:{column}")
         if self._task.cast_columns:
             risky.extend(f"{ActionType.CAST_DTYPE.value}:{column}" for column in self._task.cast_columns if column in current_columns)
         if self._task.duplicate_rule is not None and self._duplicate_key_count():

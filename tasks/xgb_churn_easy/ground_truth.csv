@@ -1,0 +1,11 @@
+customer_id,recency_days,frequency,monetary,segment,churned,last_purchase_date
+C001,12,6,120.5,Vip,0,2024-03-12
+C002,45,2,89.0,Retail,1,2024-02-07
+C003,8,10,245.75,Wholesale,0,2024-03-21
+C004,61,6,35.0,Loyalty,1,2024-01-22
+C005,17,4,410.0,Vip,0,2024-03-05
+C006,93,1,20.0,Retail,1,2023-12-29
+C007,29,6,75.25,Wholesale,0,2024-02-28
+C008,5,9,180.0,Loyalty,0,2024-03-25
+C009,74,3,52.0,Retail,1,2024-01-11
+C010,21,7,310.4,Vip,0,2024-03-01

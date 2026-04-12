@@ -1,0 +1,11 @@
+user_id,item_id,rating,timestamp,category
+u001,SKU-01,5.0,2024-03-01,Accessories
+u001,SKU-02,3.0,2024-03-03,Footwear
+u002,SKU-01,4.0,2024-03-02,Accessories
+u003,SKU-04,2.0,2024-03-04,Home Goods
+u004,SKU-03,3.0,2024-03-05,Electronics
+u005,SKU-02,1.0,2024-03-06,Footwear
+u006,SKU-05,4.5,2024-03-07,Beauty
+u007,SKU-01,3.0,2024-03-08,Accessories
+u008,SKU-06,5.0,2024-03-09,Home Goods
+u009,SKU-03,2.5,2024-03-10,Electronics

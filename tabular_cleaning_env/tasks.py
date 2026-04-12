@@ -44,6 +44,7 @@ class TaskDefinition:
     recommended_sort: Sequence[str] = field(default_factory=tuple)
     validation_rules: Dict[str, str] = field(default_factory=dict)
     risky_action_types: Sequence[ActionType] = field(default_factory=tuple)
+    fill_forward_columns: Sequence[str] = field(default_factory=tuple)
     default_export_destination: str = "warehouse_ready_json"
     max_steps: int = 12
     duplicate_rule: DuplicateRule | None = None
@@ -82,6 +83,7 @@ class TaskDefinition:
             "validation_rules": dict(self.validation_rules),
             "safe_action_types": list(self.safe_action_types),
             "risky_action_types": [action.value for action in self.risky_action_types],
+            "fill_forward_columns": list(self.fill_forward_columns),
             "default_export_destination": self.default_export_destination,
             "duplicate_rule": (
                 {
@@ -274,6 +276,112 @@ TASKS: Dict[str, TaskDefinition] = {
             ],
             latest_timestamp_field="updated_at",
         ),
+    ),
+    "xgb_churn_easy": TaskDefinition(
+        task_id="xgb_churn_easy",
+        difficulty="easy",
+        domain="commerce ML",
+        source_system="crm_rfm_export",
+        rule_pack_name="xgb_churn_prep_pack",
+        description=(
+            "Prepare CRM RFM data for churn modeling by normalizing customer segments, "
+            "standardizing purchase dates, filling missing frequency counts, and casting "
+            "monetary values into a model-ready table."
+        ),
+        input_path=_task_file("xgb_churn_easy", "raw.csv"),
+        expected_path=_task_file("xgb_churn_easy", "ground_truth.csv"),
+        expected_columns=[
+            "customer_id",
+            "recency_days",
+            "frequency",
+            "monetary",
+            "segment",
+            "churned",
+            "last_purchase_date",
+        ],
+        required_columns=[
+            "customer_id",
+            "recency_days",
+            "frequency",
+            "monetary",
+            "segment",
+            "churned",
+            "last_purchase_date",
+        ],
+        primary_key=["customer_id"],
+        date_columns={"last_purchase_date": False},
+        fill_defaults={"frequency": "6"},
+        cast_columns={"monetary": "float"},
+        case_columns={"segment": CaseMode.TITLE},
+        recommended_sort=("customer_id",),
+        validation_rules={
+            "required_fields_present": "All churn modeling fields are populated.",
+            "schema_matches": "Schema matches the churn modeling feature table.",
+            "dates_canonical": "Purchase dates use the canonical YYYY-MM-DD format.",
+            "cast_columns_numeric_non_negative": "Numeric modeling fields are valid and non-negative.",
+        },
+        risky_action_types=(ActionType.FILL_MISSING, ActionType.CAST_DTYPE),
+        default_export_destination="xgb_churn_ready_json",
+        max_steps=14,
+    ),
+    "lstm_forecast_medium": TaskDefinition(
+        task_id="lstm_forecast_medium",
+        difficulty="medium",
+        domain="commerce ML",
+        source_system="ecommerce_sales_export",
+        rule_pack_name="lstm_timeseries_prep_pack",
+        description=(
+            "Prepare a product sales time-series for demand forecasting by standardizing "
+            "dates, forward-filling missing quantities, and normalizing category labels."
+        ),
+        input_path=_task_file("lstm_forecast_medium", "raw.csv"),
+        expected_path=_task_file("lstm_forecast_medium", "ground_truth.csv"),
+        expected_columns=["date", "product_id", "quantity_sold", "revenue", "category"],
+        required_columns=["date", "product_id", "quantity_sold", "revenue", "category"],
+        primary_key=["date", "product_id"],
+        date_columns={"date": False},
+        case_columns={"category": CaseMode.TITLE},
+        recommended_sort=("date", "product_id"),
+        validation_rules={
+            "required_fields_present": "All forecasting fields are populated.",
+            "schema_matches": "Schema matches the forecasting feature table.",
+            "dates_canonical": "Date values use the canonical YYYY-MM-DD format.",
+        },
+        risky_action_types=(ActionType.FILL_FORWARD,),
+        fill_forward_columns=("quantity_sold",),
+        default_export_destination="lstm_timeseries_ready_json",
+        max_steps=15,
+    ),
+    "lightfm_recs_hard": TaskDefinition(
+        task_id="lightfm_recs_hard",
+        difficulty="hard",
+        domain="commerce ML",
+        source_system="recommendation_engine_export",
+        rule_pack_name="lightfm_interaction_prep_pack",
+        description=(
+            "Prepare a user-item interaction table for recommendation modeling by resolving "
+            "mixed-case user identifiers, standardizing timestamps, filling missing ratings, "
+            "and casting the interaction strength column."
+        ),
+        input_path=_task_file("lightfm_recs_hard", "raw.csv"),
+        expected_path=_task_file("lightfm_recs_hard", "ground_truth.csv"),
+        expected_columns=["user_id", "item_id", "rating", "timestamp", "category"],
+        required_columns=["user_id", "item_id", "rating", "timestamp", "category"],
+        primary_key=["user_id", "item_id"],
+        date_columns={"timestamp": False},
+        fill_defaults={"rating": "3"},
+        cast_columns={"rating": "float"},
+        case_columns={"user_id": CaseMode.LOWER, "category": CaseMode.TITLE},
+        recommended_sort=("user_id", "item_id"),
+        validation_rules={
+            "required_fields_present": "All interaction fields are populated.",
+            "schema_matches": "Schema matches the recommendation interaction table.",
+            "dates_canonical": "Interaction timestamps use the canonical YYYY-MM-DD format.",
+            "cast_columns_numeric_non_negative": "Ratings are numeric and non-negative.",
+        },
+        risky_action_types=(ActionType.FILL_MISSING, ActionType.CAST_DTYPE),
+        default_export_destination="lightfm_interactions_ready_json",
+        max_steps=18,
     ),
 }
 

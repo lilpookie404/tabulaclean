@@ -49,10 +49,26 @@ from tabular_cleaning_env.utils import stable_json
 ENV_NAME = "tabular_cleaning_env"
 OPEN_INTERVAL_MIN = 0.001
 REWARD_MIN = 0.01
+API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
+MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")
+HF_TOKEN = os.getenv("HF_TOKEN")
+
+# Default field values that add no information to the [STEP] action log.
+_ACTION_LOG_DEFAULTS: Dict[str, Any] = {
+    "ascending": True,
+    "preview_rows": 5,
+    "replacements": {},
+    "sort_by": [],
+    "metadata": {},
+}
+
 TASK_ORDER = [
     "easy_contacts_cleanup",
     "medium_orders_cleanup",
     "hard_appointments_cleanup",
+    "xgb_churn_easy",
+    "lstm_forecast_medium",
+    "lightfm_recs_hard",
 ]
 
 
@@ -76,18 +92,23 @@ def _error_text(message: Optional[str]) -> str:
 
 
 def _action_text(action: TabularCleaningAction) -> str:
-    return stable_json(action.model_dump(exclude_none=True))
+    """Return a compact JSON string for the [STEP] log, stripping empty defaults."""
+    dump = action.model_dump(exclude_none=True)
+    cleaned = {k: v for k, v in dump.items() if v != _ACTION_LOG_DEFAULTS.get(k, object())}
+    return stable_json(cleaned)
 
 
 def _action_signature(action: TabularCleaningAction) -> str:
+    """Full dump used for de-duplication; always includes all non-None fields."""
     return stable_json(action.model_dump(exclude_none=True))
 
 
-def build_openai_client() -> Tuple[OpenAI, str]:
-    base_url = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1").strip()
-    model_name = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct").strip()
-    hf_token = os.getenv("HF_TOKEN")
-    if hf_token is None or not hf_token.strip():
+def build_openai_client() -> Tuple[Optional[OpenAI], str]:
+    """Build the OpenAI-compatible client required by the submission contract."""
+    base_url = os.getenv("API_BASE_URL", API_BASE_URL).strip()
+    model_name = os.getenv("MODEL_NAME", MODEL_NAME).strip()
+    hf_token = os.getenv("HF_TOKEN", HF_TOKEN or "")
+    if not hf_token.strip():
         raise ValueError("HF_TOKEN environment variable is required")
     if OpenAI is Any:
         raise RuntimeError("openai package is required to run inference.py")
@@ -268,6 +289,17 @@ def fallback_action_from_observation(
         if action is not None:
             return action
 
+    for column in rules.get("fill_forward_columns", []):
+        action = choose(
+            TabularCleaningAction(
+                action_type=ActionType.FILL_FORWARD,
+                column=column,
+            ),
+            condition=column in columns and "required fields are still missing" in issues_text,
+        )
+        if action is not None:
+            return action
+
     for column, dtype in rules.get("cast_columns", {}).items():
         action = choose(
             TabularCleaningAction(
@@ -395,7 +427,10 @@ def run_task(
     except Exception as exc:
         last_error = str(exc)
     finally:
-        env.close()
+        try:
+            env.close()
+        except Exception:
+            pass
         rewards_text = ",".join(f"{reward:.2f}" for reward in rewards)
         print(
             f"[END] success={_bool_text(success)} steps={step_count} rewards={rewards_text}",
