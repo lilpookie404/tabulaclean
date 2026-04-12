@@ -160,6 +160,29 @@ def test_schema_reward_is_non_null_number_with_default() -> None:
     assert "anyOf" not in reward_schema
 
 
+def test_state_endpoint_exposes_score_fields_inside_open_interval() -> None:
+    client = TestClient(app)
+    client.post("/reset", json={"task_id": "easy_contacts_cleanup"})
+    state = client.get("/state").json()
+    assert TASK_SCORE_MIN < state["current_score"] < TASK_SCORE_MAX
+    assert TASK_SCORE_MIN < state["best_score_so_far"] < TASK_SCORE_MAX
+
+
+def test_schema_state_includes_score_fields() -> None:
+    client = TestClient(app)
+    schema = client.get("/schema").json()
+    state_properties = schema["state"]["properties"]
+    assert "current_score" in state_properties
+    assert "best_score_so_far" in state_properties
+
+
+def test_openapi_step_response_avoids_generic_reward_example() -> None:
+    client = TestClient(app)
+    openapi = client.get("/openapi.json").json()
+    step_content = openapi["paths"]["/step"]["post"]["responses"]["200"]["content"]["application/json"]
+    assert "example" not in step_content
+
+
 def test_public_score_and_reward_surfaces_stay_inside_open_interval() -> None:
     client = TestClient(app)
     seen_score_keys: set[str] = set()
