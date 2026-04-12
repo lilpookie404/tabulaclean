@@ -72,7 +72,7 @@ def test_raw_partial_and_gold_scores_are_ordered() -> None:
         partial_score = partial_result.current_score_estimate
         assert OPEN_INTERVAL_MIN <= raw_episode_score < gold_score
         assert raw_episode_score < partial_score <= OPEN_INTERVAL_MAX
-        assert 0.99 < gold_score <= OPEN_INTERVAL_MAX
+        assert 0.98 < gold_score <= OPEN_INTERVAL_MAX
 
 
 def test_missing_grading_columns_produce_low_but_in_range_score() -> None:

@@ -47,7 +47,7 @@ from tabular_cleaning_env.models import ActionType, TabularCleaningAction
 from tabular_cleaning_env.utils import stable_json
 
 ENV_NAME = "tabular_cleaning_env"
-OPEN_INTERVAL_MIN = 0.001
+OPEN_INTERVAL_MIN = 0.01
 REWARD_MIN = 0.01
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "meta-llama/Llama-3.3-70B-Instruct")

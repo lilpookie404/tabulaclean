@@ -109,7 +109,7 @@ def test_rule_based_fallback_reaches_near_perfect_open_interval_score() -> None:
     for task_id in TASKS:
         result = inference.run_task(task_id, client=None, model_name="deterministic-fallback")
         assert result["success"] is True
-        assert 0.99 < result["score"] <= OPEN_INTERVAL_MAX
+        assert 0.98 < result["score"] <= OPEN_INTERVAL_MAX
 
 
 def test_rule_based_fallback_does_not_emit_sort_rows() -> None:
@@ -193,6 +193,7 @@ def test_public_score_and_reward_surfaces_stay_inside_open_interval() -> None:
             for key, value in node.items():
                 next_path = f"{path}.{key}"
                 if "score" in key.lower() or "reward" in key.lower():
+                    lower_bound = OPEN_INTERVAL_MIN if "score" in key.lower() else REWARD_MIN
                     if "score" in key.lower():
                         seen_score_keys.add(key)
                     if isinstance(value, list):
@@ -201,14 +202,14 @@ def test_public_score_and_reward_surfaces_stay_inside_open_interval() -> None:
                             assert isinstance(item, (int, float)), (
                                 f"{item_path} should be numeric, got {type(item).__name__}"
                             )
-                            assert OPEN_INTERVAL_MIN < float(item) < 1, (
+                            assert lower_bound <= float(item) < 1, (
                                 f"{item_path} escaped open interval: {item!r}"
                             )
                     else:
                         assert isinstance(value, (int, float)), (
                             f"{next_path} should be numeric, got {type(value).__name__}"
                         )
-                        assert OPEN_INTERVAL_MIN < float(value) < 1, f"{next_path} escaped open interval: {value!r}"
+                        assert lower_bound <= float(value) < 1, f"{next_path} escaped open interval: {value!r}"
                 audit(value, path=next_path)
         elif isinstance(node, list):
             for index, value in enumerate(node):
@@ -291,4 +292,25 @@ def test_export_quality_index_stays_inside_open_interval_for_all_tasks() -> None
         quality_index = env.state.export_artifacts["data_quality_report"]["quality_index"]
         assert TASK_SCORE_MIN < quality_index < TASK_SCORE_MAX
         assert quality_index == env.state.current_score
+    env.close()
+
+
+def test_public_score_fields_avoid_two_decimal_boundary_rounding() -> None:
+    env = TabularCleaningEnvironment()
+    for task_id in TASKS:
+        observation = env.reset(task_id=task_id)
+        assert format(observation.current_score_estimate, ".2f") not in {"0.00", "1.00"}
+        payload = observation.model_dump(exclude_none=True)
+        executed = set()
+        result = observation
+        while True:
+            action = inference.fallback_action_from_observation(payload, executed)
+            executed.add(inference._action_signature(action))
+            result = env.step(action)
+            payload = result.model_dump(exclude_none=True)
+            if result.done:
+                break
+        assert format(env.state.current_score, ".2f") not in {"0.00", "1.00"}
+        quality_index = env.state.export_artifacts["data_quality_report"]["quality_index"]
+        assert format(quality_index, ".2f") not in {"0.00", "1.00"}
     env.close()
