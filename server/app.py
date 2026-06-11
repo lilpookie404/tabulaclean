@@ -2,7 +2,17 @@
 
 from __future__ import annotations
 
-from fastapi.responses import HTMLResponse
+import json
+import os
+from pathlib import Path
+from queue import Queue
+from threading import Thread
+from typing import Any, Dict
+
+import inference
+from fastapi import Query
+from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 
 from tabular_cleaning_env.models import TabularCleaningAction, TabularCleaningObservation
 from tabular_cleaning_env.openenv_compat import create_app
@@ -10,181 +20,205 @@ from tabular_cleaning_env.tasks import TASKS
 
 from .environment import TabularCleaningEnvironment
 
+BASE_DIR = Path(__file__).resolve().parent
+TEMPLATES_DIR = BASE_DIR / "templates"
+STATIC_DIR = BASE_DIR / "static"
+DEFAULT_TASK_ID = "easy_contacts_cleanup"
+DEFAULT_MODE = "manual"
+DEFAULT_RUNNER = "deterministic"
+RUNNER_OPTIONS = {"deterministic", "llm"}
+
 app = create_app(
     TabularCleaningEnvironment,
     TabularCleaningAction,
     TabularCleaningObservation,
     env_name="tabular_cleaning_env",
 )
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-@app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def index() -> HTMLResponse:
-    task_cards = "".join(
-        f"""
-        <article class="card">
-          <div class="eyebrow">{task.difficulty.title()} • {task.domain.title()}</div>
-          <h2>{task.task_id}</h2>
-          <p>{task.description}</p>
-          <div class="meta">Max steps: {task.max_steps}</div>
-        </article>
-        """
-        for task in TASKS.values()
+def _task_summary(task_id: str) -> Dict[str, Any]:
+    task = TASKS[task_id]
+    return {
+        "task_id": task.task_id,
+        "difficulty": task.difficulty,
+        "domain": task.domain,
+        "source_system": task.source_system,
+        "description": task.description,
+        "max_steps": task.max_steps,
+    }
+
+
+def _sanitize_task_id(task_id: str | None) -> str:
+    if task_id in TASKS:
+        return str(task_id)
+    return DEFAULT_TASK_ID
+
+
+def _sanitize_runner(runner: str | None) -> str:
+    if runner in RUNNER_OPTIONS:
+        return str(runner)
+    return DEFAULT_RUNNER
+
+
+def _sse_event(name: str, payload: Dict[str, Any]) -> str:
+    return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=True)}\n\n"
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    return FileResponse(TEMPLATES_DIR / "index.html")
+
+
+@app.get("/play", include_in_schema=False)
+def play() -> FileResponse:
+    return FileResponse(TEMPLATES_DIR / "play.html")
+
+
+@app.get("/play/api/config")
+def play_config() -> Dict[str, Any]:
+    llm_meta = inference.llm_status()
+    return {
+        "tasks": [_task_summary(task_id) for task_id in TASKS],
+        "default_task_id": DEFAULT_TASK_ID,
+        "default_mode": DEFAULT_MODE,
+        "default_runner": DEFAULT_RUNNER,
+        "llm_available": bool(llm_meta["available"]),
+        "llm_reason": llm_meta["reason"],
+        "llm_model_name": os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME,
+        "shareable_query_keys": ["task", "mode", "runner"],
+    }
+
+
+@app.get("/play/api/autorun-stream")
+def autorun_stream(
+    task: str = Query(DEFAULT_TASK_ID),
+    runner: str = Query(DEFAULT_RUNNER),
+) -> StreamingResponse:
+    task_id = _sanitize_task_id(task)
+    runner_name = _sanitize_runner(runner)
+
+    def stream_events() -> Any:
+        if runner_name == "llm":
+            llm_meta = inference.llm_status()
+            if not llm_meta["available"]:
+                message = str(llm_meta["reason"] or "LLM mode is unavailable")
+                yield _sse_event(
+                    "error",
+                    {
+                        "task_id": task_id,
+                        "env": inference.ENV_NAME,
+                        "model": os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME,
+                        "runner": runner_name,
+                        "message": message,
+                        "steps": 0,
+                        "observation": {},
+                        "state": {},
+                    },
+                )
+                yield _sse_event(
+                    "end",
+                    {
+                        "task_id": task_id,
+                        "env": inference.ENV_NAME,
+                        "model": os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME,
+                        "runner": runner_name,
+                        "success": False,
+                        "steps": 0,
+                        "score": inference.OPEN_INTERVAL_MIN,
+                        "rewards": [],
+                        "error": message,
+                        "published": False,
+                        "final_observation": {},
+                        "final_state": {},
+                        "fallback_reason": None,
+                        "llm_disabled": True,
+                        "llm_disabled_reason": message,
+                        "llm_fallback_count": 0,
+                    },
+                )
+                return
+            try:
+                client, model_name = inference.build_openai_client()
+            except Exception as exc:
+                message = inference._error_text(str(exc))
+                yield _sse_event(
+                    "error",
+                    {
+                        "task_id": task_id,
+                        "env": inference.ENV_NAME,
+                        "model": os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME,
+                        "runner": runner_name,
+                        "message": message,
+                        "steps": 0,
+                        "observation": {},
+                        "state": {},
+                    },
+                )
+                yield _sse_event(
+                    "end",
+                    {
+                        "task_id": task_id,
+                        "env": inference.ENV_NAME,
+                        "model": os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME,
+                        "runner": runner_name,
+                        "success": False,
+                        "steps": 0,
+                        "score": inference.OPEN_INTERVAL_MIN,
+                        "rewards": [],
+                        "error": message,
+                        "published": False,
+                        "final_observation": {},
+                        "final_state": {},
+                        "fallback_reason": None,
+                        "llm_disabled": True,
+                        "llm_disabled_reason": message,
+                        "llm_fallback_count": 0,
+                    },
+                )
+                return
+            llm_state = inference.LLMRuntimeState(enabled=True)
+        else:
+            client = None
+            model_name = os.getenv("MODEL_NAME", inference.MODEL_NAME).strip() or inference.MODEL_NAME
+            llm_state = inference.LLMRuntimeState(enabled=False, disabled_reason="deterministic_runner_selected")
+
+        event_queue: Queue[inference.TaskRunEvent | None] = Queue()
+
+        def emit(event: inference.TaskRunEvent) -> None:
+            event_queue.put(event)
+
+        def worker() -> None:
+            try:
+                inference.execute_task_run(
+                    task_id=task_id,
+                    client=client,
+                    model_name=model_name,
+                    llm_state=llm_state,
+                    event_callback=emit,
+                    runner=runner_name,
+                )
+            finally:
+                event_queue.put(None)
+
+        thread = Thread(target=worker, daemon=True)
+        thread.start()
+
+        while True:
+            event = event_queue.get()
+            if event is None:
+                break
+            yield _sse_event(event.event, event.payload)
+
+    return StreamingResponse(
+        stream_events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
     )
-    html = f"""
-    <!doctype html>
-    <html lang="en">
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
-        <title>tabular_cleaning_env</title>
-        <style>
-          :root {{
-            color-scheme: light;
-            --ink: #102a43;
-            --muted: #486581;
-            --bg: #f4f7fb;
-            --panel: #ffffff;
-            --accent: #1f7a8c;
-            --accent-soft: #d9f0f4;
-            --border: #d9e2ec;
-          }}
-          * {{ box-sizing: border-box; }}
-          body {{
-            margin: 0;
-            font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
-            color: var(--ink);
-            background:
-              radial-gradient(circle at top right, #e7f7fb, transparent 32%),
-              linear-gradient(180deg, #fdfefe 0%, var(--bg) 100%);
-          }}
-          main {{ max-width: 1080px; margin: 0 auto; padding: 48px 20px 72px; }}
-          .hero {{
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 24px;
-            padding: 28px;
-            box-shadow: 0 18px 40px rgba(16, 42, 67, 0.08);
-          }}
-          .badge {{
-            display: inline-block;
-            background: var(--accent-soft);
-            color: var(--accent);
-            border-radius: 999px;
-            padding: 8px 14px;
-            font-size: 13px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-          }}
-          h1 {{
-            margin: 16px 0 12px;
-            font-size: clamp(2rem, 4vw, 3.3rem);
-            line-height: 1.05;
-          }}
-          p {{
-            margin: 0;
-            color: var(--muted);
-            line-height: 1.65;
-            font-size: 1rem;
-          }}
-          .links, .grid {{
-            display: grid;
-            gap: 16px;
-          }}
-          .links {{
-            margin-top: 24px;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          }}
-          .grid {{
-            margin-top: 28px;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-          }}
-          .card, .link-card, .code-card {{
-            background: var(--panel);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 20px;
-          }}
-          .link-card {{
-            text-decoration: none;
-            color: inherit;
-            transition: transform 120ms ease, box-shadow 120ms ease;
-          }}
-          .link-card:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 10px 24px rgba(16, 42, 67, 0.08);
-          }}
-          .eyebrow {{
-            color: var(--accent);
-            font-size: 12px;
-            font-weight: 700;
-            letter-spacing: 0.04em;
-            text-transform: uppercase;
-            margin-bottom: 10px;
-          }}
-          .meta {{
-            margin-top: 14px;
-            color: var(--ink);
-            font-weight: 600;
-          }}
-          pre {{
-            margin: 14px 0 0;
-            overflow-x: auto;
-            white-space: pre-wrap;
-            word-break: break-word;
-            background: #0f172a;
-            color: #e2e8f0;
-            border-radius: 16px;
-            padding: 16px;
-            font-size: 13px;
-            line-height: 1.6;
-          }}
-          .section-title {{
-            margin: 32px 0 14px;
-            font-size: 1.15rem;
-            font-weight: 700;
-          }}
-        </style>
-      </head>
-      <body>
-        <main>
-          <section class="hero">
-            <span class="badge">OpenEnv Data Readiness</span>
-            <h1>tabular_cleaning_env</h1>
-            <p>
-              A deterministic human-in-the-loop commerce data readiness suite. Agents clean operational exports
-              and model-input tables with the same governed workflow: profile data, apply typed transformations,
-              review risky changes, run validation gates, and publish audited outputs for downstream use.
-            </p>
-            <div class="links">
-              <a class="link-card" href="/docs"><div class="eyebrow">Explore</div><strong>API Docs</strong><p>Interactive FastAPI and OpenEnv schema explorer.</p></a>
-              <a class="link-card" href="/metadata"><div class="eyebrow">Inspect</div><strong>Metadata</strong><p>Benchmark metadata, versioning, and description.</p></a>
-              <a class="link-card" href="/schema"><div class="eyebrow">Inspect</div><strong>Schema</strong><p>Action, observation, and state JSON schemas.</p></a>
-              <a class="link-card" href="/health"><div class="eyebrow">Monitor</div><strong>Health</strong><p>Container health endpoint for validators and deployments.</p></a>
-            </div>
-          </section>
-          <div class="section-title">Bundled Tasks</div>
-          <section class="grid">{task_cards}</section>
-          <div class="section-title">Example Action</div>
-          <section class="code-card">
-            <p>Workflow actions and cleanup actions use the same typed interface.</p>
-            <pre>{{"action_type":"approve_changes","change_id":"chg-002"}}</pre>
-          </section>
-          <div class="section-title">Example Inference Logs</div>
-          <section class="code-card">
-            <p>The baseline emits parser-safe logs in the required START / STEP / END format.</p>
-            <pre>[START] task=easy_contacts_cleanup env=tabular_cleaning_env model=gpt-4.1-mini
-[STEP] step=1 action={{"action_type":"profile_table"}} reward=0.01 done=false error=null
-[STEP] step=2 action={{"action_type":"rename_column","column":"full_name","new_name":"name"}} reward=0.05 done=false error=null
-[STEP] step=3 action={{"action_type":"approve_changes","change_id":"chg-001"}} reward=0.01 done=false error=null
-[END] success=true steps=13 rewards=0.01,0.05,0.01,0.08,0.06,0.04,0.04,0.14,0.03,0.02,0.02,0.02,0.06</pre>
-          </section>
-        </main>
-      </body>
-    </html>
-    """
-    return HTMLResponse(html)
 
 
 def main(host: str = "0.0.0.0", port: int = 8000) -> None:

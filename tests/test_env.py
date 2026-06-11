@@ -24,10 +24,101 @@ def test_root_page_has_core_links() -> None:
     client = TestClient(app)
     response = client.get("/")
     assert response.status_code == 200
+    assert "/play" in response.text
     assert "/docs" in response.text
     assert "/metadata" in response.text
     assert "/schema" in response.text
     assert "/health" in response.text
+
+
+def test_play_page_loads_workbench_assets() -> None:
+    client = TestClient(app)
+    response = client.get("/play")
+    assert response.status_code == 200
+    assert "TabulaClean" in response.text
+    assert "Commerce Data Readiness Workbench" not in response.text
+    assert "/static/play.css" in response.text
+    assert "/static/play.js" in response.text
+    assert "Manual Workspace" in response.text
+    assert "Automated Run" in response.text
+
+
+def test_play_config_returns_expected_defaults_and_task_catalog() -> None:
+    client = TestClient(app)
+    response = client.get("/play/api/config")
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["default_task_id"] == "easy_contacts_cleanup"
+    assert payload["default_mode"] == "manual"
+    assert payload["default_runner"] == "deterministic"
+    assert payload["shareable_query_keys"] == ["task", "mode", "runner"]
+    assert len(payload["tasks"]) == len(TASKS) == 6
+    task_ids = {task["task_id"] for task in payload["tasks"]}
+    assert task_ids == set(TASKS)
+    task_summary = next(task for task in payload["tasks"] if task["task_id"] == "easy_contacts_cleanup")
+    assert task_summary["difficulty"] == TASKS["easy_contacts_cleanup"].difficulty
+    assert task_summary["domain"] == TASKS["easy_contacts_cleanup"].domain
+    assert task_summary["source_system"] == TASKS["easy_contacts_cleanup"].source_system
+    assert task_summary["max_steps"] == TASKS["easy_contacts_cleanup"].max_steps
+
+
+def test_manual_websocket_reset_step_and_state_round_trip() -> None:
+    client = TestClient(app)
+    with client.websocket_connect("/ws") as websocket:
+        websocket.send_json({"type": "reset", "data": {"task_id": "easy_contacts_cleanup"}})
+        reset_message = websocket.receive_json()
+        assert reset_message["type"] == "observation"
+        reset_observation = reset_message["data"]["observation"]
+        assert reset_observation["task_id"] == "easy_contacts_cleanup"
+        assert reset_observation["steps_taken"] == 0
+
+        websocket.send_json({"type": "state"})
+        state_message = websocket.receive_json()
+        assert state_message["type"] == "state"
+        assert state_message["data"]["task_id"] == "easy_contacts_cleanup"
+        assert TASK_SCORE_MIN < state_message["data"]["current_score"] < TASK_SCORE_MAX
+
+        websocket.send_json({"type": "step", "data": {"action_type": "inspect_table", "preview_rows": 3}})
+        step_message = websocket.receive_json()
+        assert step_message["type"] == "observation"
+        step_observation = step_message["data"]["observation"]
+        assert step_observation["steps_taken"] == 1
+        assert step_observation["last_action"]["action_type"] == "inspect_table"
+        assert REWARD_MIN <= step_message["data"]["reward"] < TASK_SCORE_MAX
+
+
+def test_autorun_stream_emits_start_step_and_end_for_deterministic_runner() -> None:
+    client = TestClient(app)
+    with client.stream("GET", "/play/api/autorun-stream?task=easy_contacts_cleanup&runner=deterministic") as response:
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/event-stream")
+        payload = "".join(response.iter_text())
+
+    start_index = payload.find("event: start")
+    step_index = payload.find("event: step")
+    end_index = payload.find("event: end")
+    assert start_index != -1
+    assert step_index != -1
+    assert end_index != -1
+    assert start_index < step_index < end_index
+    assert '"runner": "deterministic"' in payload
+    assert '"success": true' in payload
+    assert '"published": true' in payload
+
+
+def test_autorun_stream_reports_llm_unavailable_without_hf_token(monkeypatch) -> None:
+    monkeypatch.delenv("HF_TOKEN", raising=False)
+    monkeypatch.setattr(inference, "HF_TOKEN", None)
+    client = TestClient(app)
+    with client.stream("GET", "/play/api/autorun-stream?task=easy_contacts_cleanup&runner=llm") as response:
+        assert response.status_code == 200
+        payload = "".join(response.iter_text())
+
+    assert "event: error" in payload
+    assert "event: end" in payload
+    assert '"runner": "llm"' in payload
+    assert '"success": false' in payload
+    assert "HF_TOKEN environment variable is required" in payload
 
 
 def test_action_model_rejects_invalid_enum_and_extra_fields() -> None:

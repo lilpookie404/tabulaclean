@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "openenv-tabular-cleaning"
 version = "0.1.0"
-description = "OpenEnv environment for deterministic tabular data cleaning"
+description = "TabulaClean AI-assisted spreadsheet cleaning and evaluation toolkit"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [

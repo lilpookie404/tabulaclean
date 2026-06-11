@@ -80,6 +80,31 @@ class LLMRuntimeState:
     fallback_count: int = 0
 
 
+@dataclass
+class TaskRunEvent:
+    event: str
+    payload: Dict[str, Any]
+
+
+@dataclass
+class TaskRunResult:
+    task_id: str
+    model_name: str
+    runner: str
+    success: bool
+    steps: int
+    score: float
+    rewards: List[float]
+    error: Optional[str]
+    published: bool
+    fallback_reason: Optional[str]
+    llm_disabled: bool
+    llm_disabled_reason: Optional[str]
+    llm_fallback_count: int
+    final_observation: Dict[str, Any]
+    final_state: Dict[str, Any]
+
+
 def _bool_text(value: bool) -> str:
     return "true" if value else "false"
 
@@ -101,6 +126,20 @@ def _action_text(action: TabularCleaningAction) -> str:
 def _action_signature(action: TabularCleaningAction) -> str:
     """Full dump used for de-duplication; always includes all non-None fields."""
     return stable_json(action.model_dump(exclude_none=True))
+
+
+def llm_available() -> bool:
+    hf_token = os.getenv("HF_TOKEN", HF_TOKEN or "").strip()
+    return bool(hf_token) and OpenAI is not Any
+
+
+def llm_status() -> Dict[str, Any]:
+    hf_token = os.getenv("HF_TOKEN", HF_TOKEN or "").strip()
+    if not hf_token:
+        return {"available": False, "reason": "HF_TOKEN environment variable is required"}
+    if OpenAI is Any:
+        return {"available": False, "reason": "openai package is unavailable"}
+    return {"available": True, "reason": None}
 
 
 def build_openai_client() -> Tuple[Optional[OpenAI], str]:
@@ -369,29 +408,76 @@ def classify_llm_exception(exc: Exception) -> Tuple[str, bool]:
     return "llm_runtime_error", True
 
 
-def run_task(
+def _snapshot_state(env: Any) -> Dict[str, Any]:
+    try:
+        state = env.state
+    except Exception:
+        return {}
+    if hasattr(state, "model_dump"):
+        return dict(state.model_dump())
+    if isinstance(state, dict):
+        return dict(state)
+    return {}
+
+
+def _emit_event(
+    event_callback: Optional[Callable[[TaskRunEvent], None]],
+    event: str,
+    payload: Dict[str, Any],
+) -> None:
+    if event_callback is None:
+        return None
+    try:
+        event_callback(TaskRunEvent(event=event, payload=payload))
+    except Exception:
+        return None
+    return None
+
+
+def execute_task_run(
     task_id: str,
     client: Optional[OpenAI],
     model_name: str,
     env_factory: Callable[[], TabularCleaningEnvironment] = TabularCleaningEnvironment,
     llm_state: Optional[LLMRuntimeState] = None,
-) -> Dict[str, Any]:
+    event_callback: Optional[Callable[[TaskRunEvent], None]] = None,
+    runner: str = "deterministic",
+) -> TaskRunResult:
     env = env_factory()
     rewards: List[float] = []
     score = OPEN_INTERVAL_MIN
     step_count = 0
     success = False
+    published = False
     last_error: Optional[str] = None
+    final_observation: Dict[str, Any] = {}
+    final_state: Dict[str, Any] = {}
     executed_actions: Set[str] = set()
     runtime_state = llm_state or LLMRuntimeState(enabled=client is not None)
     if client is None and runtime_state.enabled:
         runtime_state.enabled = False
         runtime_state.disabled_reason = runtime_state.disabled_reason or "llm_client_unavailable"
-    print(f"[START] task={task_id} env={ENV_NAME} model={model_name}", flush=True)
+
     try:
         reset_obs = env.reset(task_id=task_id)
-        observation = reset_obs.model_dump(exclude_none=True)
+        final_observation = reset_obs.model_dump(exclude_none=True)
+        final_state = _snapshot_state(env)
+        score = final_observation.get("current_score_estimate", score)
+        _emit_event(
+            event_callback,
+            "start",
+            {
+                "task_id": task_id,
+                "env": ENV_NAME,
+                "model": model_name,
+                "runner": runner,
+                "observation": final_observation,
+                "state": final_state,
+                "raw_table": list(final_state.get("current_table", [])),
+            },
+        )
 
+        observation = final_observation
         while True:
             if client is not None and runtime_state.enabled:
                 try:
@@ -415,38 +501,140 @@ def run_task(
             last_error = result.last_action_error
             score = result.current_score_estimate
             done = bool(result.done)
-            print(
-                f"[STEP] step={step_count} action={_action_text(action)} reward={reward:.2f} "
-                f"done={_bool_text(done)} error={_error_text(last_error)}",
-                flush=True,
+            final_observation = result.model_dump(exclude_none=True)
+            final_state = _snapshot_state(env)
+            published = bool(result.change_set_summary.get("published"))
+            _emit_event(
+                event_callback,
+                "step",
+                {
+                    "step": step_count,
+                    "action": action.model_dump(exclude_none=True),
+                    "action_text": _action_text(action),
+                    "reward": reward,
+                    "done": done,
+                    "error": _error_text(last_error),
+                    "observation": final_observation,
+                    "state": final_state,
+                },
             )
-            observation = result.model_dump(exclude_none=True)
+            observation = final_observation
             if done:
-                success = bool(result.change_set_summary.get("published"))
+                success = published
                 break
     except Exception as exc:
-        last_error = str(exc)
+        last_error = _error_text(str(exc))
+        _emit_event(
+            event_callback,
+            "error",
+            {
+                "task_id": task_id,
+                "env": ENV_NAME,
+                "model": model_name,
+                "runner": runner,
+                "message": last_error,
+                "steps": step_count,
+                "observation": final_observation,
+                "state": final_state,
+            },
+        )
     finally:
         try:
             env.close()
         except Exception:
             pass
-        rewards_text = ",".join(f"{reward:.2f}" for reward in rewards)
+
+    result = TaskRunResult(
+        task_id=task_id,
+        model_name=model_name,
+        runner=runner,
+        success=success,
+        steps=step_count,
+        score=score,
+        rewards=rewards,
+        error=last_error,
+        published=published,
+        fallback_reason=runtime_state.last_fallback_reason,
+        llm_disabled=not runtime_state.enabled,
+        llm_disabled_reason=runtime_state.disabled_reason,
+        llm_fallback_count=runtime_state.fallback_count,
+        final_observation=final_observation,
+        final_state=final_state,
+    )
+    _emit_event(
+        event_callback,
+        "end",
+        {
+            "task_id": task_id,
+            "env": ENV_NAME,
+            "model": model_name,
+            "runner": runner,
+            "success": success,
+            "steps": step_count,
+            "score": score,
+            "rewards": list(rewards),
+            "error": _error_text(last_error),
+            "published": published,
+            "final_observation": final_observation,
+            "final_state": final_state,
+            "fallback_reason": runtime_state.last_fallback_reason,
+            "llm_disabled": not runtime_state.enabled,
+            "llm_disabled_reason": runtime_state.disabled_reason,
+            "llm_fallback_count": runtime_state.fallback_count,
+        },
+    )
+    return result
+
+
+def run_task(
+    task_id: str,
+    client: Optional[OpenAI],
+    model_name: str,
+    env_factory: Callable[[], TabularCleaningEnvironment] = TabularCleaningEnvironment,
+    llm_state: Optional[LLMRuntimeState] = None,
+) -> Dict[str, Any]:
+    print(f"[START] task={task_id} env={ENV_NAME} model={model_name}", flush=True)
+
+    def print_step(event: TaskRunEvent) -> None:
+        if event.event != "step":
+            return None
+        payload = event.payload
         print(
-            f"[END] success={_bool_text(success)} steps={step_count} rewards={rewards_text}",
+            f"[STEP] step={payload['step']} action={payload['action_text']} reward={payload['reward']:.2f} "
+            f"done={_bool_text(bool(payload['done']))} error={payload['error']}",
             flush=True,
         )
+        return None
+
+    runner = "llm" if client is not None else "deterministic"
+    result = execute_task_run(
+        task_id=task_id,
+        client=client,
+        model_name=model_name,
+        env_factory=env_factory,
+        llm_state=llm_state,
+        event_callback=print_step,
+        runner=runner,
+    )
+    rewards_text = ",".join(f"{reward:.2f}" for reward in result.rewards)
+    print(
+        f"[END] success={_bool_text(result.success)} steps={result.steps} rewards={rewards_text}",
+        flush=True,
+    )
     return {
-        "task_id": task_id,
-        "success": success,
-        "steps": step_count,
-        "score": score,
-        "rewards": rewards,
-        "error": last_error,
-        "fallback_reason": runtime_state.last_fallback_reason,
-        "llm_disabled": not runtime_state.enabled,
-        "llm_disabled_reason": runtime_state.disabled_reason,
-        "llm_fallback_count": runtime_state.fallback_count,
+        "task_id": result.task_id,
+        "success": result.success,
+        "steps": result.steps,
+        "score": result.score,
+        "rewards": result.rewards,
+        "error": result.error,
+        "published": result.published,
+        "final_observation": result.final_observation,
+        "final_state": result.final_state,
+        "fallback_reason": result.fallback_reason,
+        "llm_disabled": result.llm_disabled,
+        "llm_disabled_reason": result.llm_disabled_reason,
+        "llm_fallback_count": result.llm_fallback_count,
     }
 
 

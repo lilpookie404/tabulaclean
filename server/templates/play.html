@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TabulaClean Workbench</title>
+    <link rel="stylesheet" href="/static/play.css">
+    <script src="/static/play.js" defer></script>
+  </head>
+  <body class="terminal-site workbench-body">
+    <header class="terminal-nav">
+      <a class="nav-brand" href="/">
+        <span class="nav-mark">▶</span>
+        <span>TabulaClean</span>
+        <small>/ workbench</small>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/">Overview</a>
+        <a href="/docs">API Docs</a>
+        <a href="https://github.com/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://huggingface.co/spaces/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">HF Space</a>
+      </nav>
+      <a class="nav-cta" href="/play">Open Workbench</a>
+    </header>
+
+    <main class="workbench-shell">
+      <section class="wb-command-deck">
+        <div class="wb-title-group">
+          <div class="hero-label">Guided + automated evaluation</div>
+          <h1>TabulaClean Workbench</h1>
+          <p class="wb-subtitle">
+            Preview the governed cleaning workflow with structured actions, review queues,
+            validation checks, export checkpoints, and auditable results.
+          </p>
+        </div>
+
+        <div class="wb-command-grid">
+          <div class="wb-control-field">
+            <label class="field-label" for="task-select">Task</label>
+            <select id="task-select" class="wb-task-select"></select>
+          </div>
+
+          <div class="wb-chip-row">
+            <div class="metric-chip">
+              <span class="chip-label">Score</span>
+              <strong id="score-chip">--</strong>
+            </div>
+            <div class="metric-chip">
+              <span class="chip-label">Steps</span>
+              <strong id="steps-chip">0</strong>
+            </div>
+            <div class="metric-chip metric-status-chip">
+              <span class="chip-label">Status</span>
+              <strong id="status-chip" class="status-value">Loading</strong>
+            </div>
+          </div>
+
+          <div class="wb-toggle-row">
+            <div class="toolbar-cluster">
+              <span class="field-label">Mode</span>
+              <div class="tabs">
+                <button type="button" class="tab-btn active" data-mode="manual">Manual Workspace</button>
+                <button type="button" class="tab-btn" data-mode="auto">Automated Run</button>
+              </div>
+            </div>
+
+            <div class="toolbar-cluster">
+              <span class="field-label">Runner</span>
+              <div class="tabs">
+                <button type="button" class="tab-btn active" data-runner="deterministic">Deterministic</button>
+                <button type="button" class="tab-btn" data-runner="llm">LLM</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="wb-action-row">
+            <button type="button" class="btn-outline compact-button" id="copy-link-button">Copy Link</button>
+            <button type="button" class="btn-primary compact-button" id="reset-button">Reset Task</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="workbench-grid">
+        <article class="dock-panel task-context-panel">
+          <div class="panel-header">Task Overview</div>
+          <div class="panel-section">
+            <div class="eyebrow">Task</div>
+            <h2 id="task-title">Loading task...</h2>
+            <p id="task-description" class="panel-copy"></p>
+          </div>
+          <div class="meta-grid">
+            <div>
+              <span class="meta-label">Difficulty</span>
+              <strong id="task-difficulty">--</strong>
+            </div>
+            <div>
+              <span class="meta-label">Domain</span>
+              <strong id="task-domain">--</strong>
+            </div>
+            <div>
+              <span class="meta-label">Source</span>
+              <strong id="task-source">--</strong>
+            </div>
+            <div>
+              <span class="meta-label">Rows</span>
+              <strong id="task-rows">--</strong>
+            </div>
+            <div>
+              <span class="meta-label">Next Stage</span>
+              <strong id="task-next-stage">--</strong>
+            </div>
+            <div>
+              <span class="meta-label">Runner</span>
+              <strong id="runner-chip">deterministic</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="table-stage current-stage">
+          <div class="stage-header">
+            <div>
+              <div class="eyebrow">Primary Workspace</div>
+              <h2>Current Working Table</h2>
+            </div>
+            <span class="table-badge" id="current-count">0 rows</span>
+          </div>
+          <p class="stage-copy">
+            The active cleaned dataset. This is the dominant workspace for inspection, mutation,
+            validation readiness, and publish decisions.
+          </p>
+          <div id="current-table" class="table-shell empty-state">Current table will appear here.</div>
+        </article>
+
+        <article class="dock-panel workflow-panel">
+          <div class="panel-header">Workflow</div>
+          <div id="workflow-progress" class="workflow-bar"></div>
+        </article>
+
+        <article class="dock-panel mode-panel manual-panel" data-mode-panel="manual">
+          <div class="panel-header">Action Builder</div>
+          <div class="panel-section">
+            <label class="field-label" for="action-type">Action Type</label>
+            <select id="action-type" class="wb-field"></select>
+          </div>
+          <div id="action-fields" class="panel-section dynamic-fields"></div>
+          <div class="panel-section">
+            <div class="section-inline-head">
+              <span class="panel-section-title">Quick Actions</span>
+              <span class="section-hint">safe / risky</span>
+            </div>
+            <div id="quick-actions" class="quick-actions-grid"></div>
+          </div>
+          <form id="action-form" class="panel-section action-form">
+            <div>
+              <label class="field-label" for="action-preview">Payload Preview</label>
+              <pre id="action-preview" class="json-preview">{}</pre>
+            </div>
+            <button type="submit" class="send-btn">Send Action</button>
+          </form>
+        </article>
+
+        <article class="dock-panel mode-panel auto-panel hidden" data-mode-panel="auto">
+          <div class="panel-header">Automated Run Controls</div>
+          <div class="panel-section">
+            <p id="auto-helper-text" class="panel-copy">
+              Deterministic mode is always available. LLM mode appears when credentials are configured.
+            </p>
+            <div class="auto-metrics">
+              <div class="metric-inline">
+                <span class="meta-label">LLM Status</span>
+                <strong id="llm-chip">Checking...</strong>
+              </div>
+              <div class="metric-inline">
+                <span class="meta-label">Runner</span>
+                <strong>isolated SSE session</strong>
+              </div>
+            </div>
+            <div class="button-stack">
+              <button type="button" class="btn-primary compact-button" id="start-auto-button">Start Auto Run</button>
+              <button type="button" class="btn-outline compact-button" id="clear-auto-button">Clear Auto View</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="dock-panel issues-panel">
+          <div class="panel-header">Validation &amp; Issues</div>
+          <div class="panel-section">
+            <div class="section-inline-head">
+              <span class="panel-section-title">Issues</span>
+            </div>
+            <ul id="issues-list" class="issues-list"></ul>
+          </div>
+          <div class="panel-section">
+            <div class="section-inline-head">
+              <span class="panel-section-title">Validation Checks</span>
+            </div>
+            <div id="validation-list" class="validation-list empty-state">Run validations to populate checks.</div>
+          </div>
+        </article>
+
+        <article class="dock-panel review-panel">
+          <div class="panel-header">Pending Review Queue</div>
+          <div id="review-queue" class="review-queue empty-state">No risky changes waiting for review.</div>
+        </article>
+
+        <article class="table-stage raw-stage">
+          <div class="stage-header">
+            <div>
+              <div class="eyebrow">Secondary Reference</div>
+              <h2>Raw Export Snapshot</h2>
+            </div>
+            <span class="table-badge" id="before-count">0 rows</span>
+          </div>
+          <p class="stage-copy">
+            Original source data retained for comparison, change review, and audit context.
+          </p>
+          <div id="before-table" class="table-shell empty-state">Reset a task to load the raw table.</div>
+        </article>
+
+        <article class="dock-panel stream-panel">
+          <div class="panel-header">Step Stream</div>
+          <div id="step-stream" class="log-stream empty-state">Step-by-step activity will appear here.</div>
+        </article>
+
+        <article class="dock-panel summary-panel">
+          <div class="panel-header">Run Summary</div>
+          <div id="run-summary" class="run-summary empty-state">No run has completed yet.</div>
+        </article>
+
+        <article class="dock-panel timeline-panel">
+          <div class="panel-header">Audit Timeline</div>
+          <div id="audit-timeline" class="timeline empty-state">Audit events will appear here.</div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

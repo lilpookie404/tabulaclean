@@ -1,5 +1,5 @@
 ---
-title: Commerce Data Readiness Suite
+title: TabulaClean
 emoji: "📦"
 colorFrom: blue
 colorTo: indigo
@@ -7,17 +7,41 @@ sdk: docker
 app_port: 8000
 ---
 
-# openenv-tabular-cleaning-2
+# TabulaClean
 
-`tabular_cleaning_env` is a deterministic OpenEnv environment for a **commerce data readiness suite**.
+TabulaClean is an AI-assisted spreadsheet cleaning assistant for people who
+need reliable CSV and Excel cleanup without writing code.
 
-It simulates a real workflow inside ops, analytics, and ML teams: messy business exports arrive, an agent profiles them, applies structured cleanup actions, gets risky changes reviewed, runs validations, and publishes audited tables that are ready for either downstream operations or model training.
+The product direction is a guided workflow where users upload a spreadsheet,
+preview data issues, review suggested fixes, approve risky changes, validate
+the cleaned data, and download a trustworthy result.
 
-This is a governed data-cleaning workflow built around the standard OpenEnv API.
+This repository currently provides the cleaning engine, review workflow,
+validation behavior, static workbench, and a deterministic evaluation suite.
+CSV/XLSX upload APIs and the React frontend are planned for later phases and
+are not implemented yet.
+
+## Project Direction
+
+TabulaClean is being developed as an AI-assisted spreadsheet cleaning
+assistant for non-technical users.
+
+The bundled benchmark tasks remain available as an advanced evaluation layer
+for testing cleaning actions, model behavior, review gates, and deterministic
+grading. They are not the primary user experience.
+
+Benchmark tasks can compare a cleaned table with bundled ground truth. Real
+uploaded files will not usually have a known correct answer, so they will use
+quality checks such as schema validation, missing-value reduction, duplicate
+detection, consistent formats, and approval of risky changes instead of
+ground-truth scoring.
+
+See [docs/PROJECT_DIRECTION.md](docs/PROJECT_DIRECTION.md) for the concise
+product and architecture boundary.
 
 ## What Problem It Solves
 
-Teams routinely receive broken exports from CRMs, storefronts, and scheduling tools:
+People routinely receive broken exports and spreadsheets from business tools:
 
 - columns are renamed or inconsistent
 - dates use mixed formats
@@ -25,33 +49,35 @@ Teams routinely receive broken exports from CRMs, storefronts, and scheduling to
 - required fields are missing
 - duplicates appear after manual merges or sync bugs
 
-In the real world, this work is often done manually in spreadsheets, with little auditability and a high risk of silently damaging data. This repository packages that workflow as a deterministic environment with transparent scoring.
+This work is often done manually, with little auditability and a high risk of
+silently damaging data. TabulaClean is designed to make cleanup understandable,
+reviewable, and safer for everyday spreadsheet users.
 
-## Real-World Workflow
+## Product Workflow
 
-The environment models a realistic internal workflow:
+The cleaning workflow is:
 
-1. import a raw operational export
-2. profile the table and inspect the change set
-3. apply structured cleanup actions
-4. approve or reject risky mutations
-5. run validation gates
-6. export a cleaned artifact bundle
-7. publish the final table
+1. load and preview spreadsheet data
+2. identify quality issues
+3. review structured cleanup suggestions
+4. approve or reject risky changes
+5. run validation checks
+6. export a cleaned result with an audit trail
 
-That is the core product story: **a human-in-the-loop commerce data readiness workbench**.
+The current static workbench previews this governed workflow using bundled
+evaluation tasks.
 
 ## Design Goals
 
-- The task suite models a concrete commerce data-readiness workflow.
-- Grading is deterministic and transparent.
-- Reward shaping is dense and bounded.
-- The action space is structured, typed, and safe.
-- The tasks cover realistic source systems without requiring external data or custom training.
+- Make spreadsheet issues understandable to non-technical users.
+- Keep suggested changes structured, typed, and reviewable.
+- Require approval before risky changes can be published.
+- Produce validation results and an auditable transformation history.
+- Preserve deterministic benchmark grading for internal evaluation.
 
-## Environment API
+## Advanced Evaluation API
 
-The environment follows the standard OpenEnv shape:
+The internal evaluation environment exposes a stable reset/step/state shape:
 
 - `reset(task_id=...)` returns the initial observation
 - `step(action)` returns the next observation with `reward`, `done`, and `metadata`
@@ -336,7 +362,10 @@ docker build -t tabular-cleaning-env .
 openenv validate http://localhost:8000
 ```
 
-If the `openenv` CLI is not available on your machine, validate through the Docker image first. The repository includes `tabular_cleaning_env/openenv_compat.py` for local development fallback, but the submission target is the official OpenEnv runtime installed in the Python 3.11 / Docker environment.
+If the `openenv` CLI is not available on your machine, validate through the
+Docker image first. The compatibility wrapper is included for local
+development, while deployment validation uses the pinned runtime installed in
+the Python 3.11 Docker environment.
 
 The project includes the core runtime files:
 

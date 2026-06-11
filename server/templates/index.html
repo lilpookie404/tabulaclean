@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>TabulaClean</title>
+    <link rel="stylesheet" href="/static/play.css">
+  </head>
+  <body class="terminal-site">
+    <header class="terminal-nav">
+      <a class="nav-brand" href="/">
+        <span class="nav-mark">▶</span>
+        <span>TabulaClean</span>
+        <small>/ spreadsheet assistant</small>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="/play">Workbench</a>
+        <a href="/docs">API Docs</a>
+        <a href="https://github.com/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">GitHub</a>
+        <a href="https://huggingface.co/spaces/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">HF Space</a>
+      </nav>
+      <a class="nav-cta" href="/play">Open Workbench</a>
+    </header>
+
+    <main class="landing-shell">
+      <section class="landing-hero">
+        <div class="hero-copy-panel">
+          <div class="hero-grid-overlay" aria-hidden="true"></div>
+          <div class="hero-copy">
+            <div class="hero-label">AI-assisted spreadsheet cleaning</div>
+            <h1>
+              Messy spreadsheets.
+              <span class="accent-line">Guided cleanup.</span>
+              Ready.
+            </h1>
+            <p>
+              TabulaClean helps people inspect data issues, review suggested fixes, approve risky
+              changes, validate cleaned tables, and prepare trustworthy spreadsheet exports.
+            </p>
+            <div class="hero-actions">
+              <a class="btn-primary" href="/play">Open Workbench</a>
+              <a class="btn-outline" href="/schema">View API Schema</a>
+              <a class="btn-outline" href="https://github.com/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">GitHub</a>
+            </div>
+          </div>
+        </div>
+
+        <aside class="hero-evidence-panel">
+          <div class="evidence-label">Runtime Notes</div>
+          <div class="evidence-terminal">
+            <div class="evidence-row">
+              <span>evaluation layer</span>
+              <strong>tabular_cleaning_env</strong>
+            </div>
+            <div class="evidence-row">
+              <span>deployment</span>
+              <strong>Docker + HF Space</strong>
+            </div>
+            <div class="evidence-row">
+              <span>inference</span>
+              <strong>OpenAI client</strong>
+            </div>
+            <div class="evidence-row">
+              <span>grader</span>
+              <strong>strict open interval</strong>
+            </div>
+          </div>
+
+          <div class="evidence-subgrid">
+            <article class="evidence-card">
+              <div class="section-title">Workflow</div>
+              <ul class="evidence-list">
+                <li>profile</li>
+                <li>clean</li>
+                <li>review</li>
+                <li>validate</li>
+                <li>export</li>
+                <li>publish</li>
+              </ul>
+            </article>
+            <article class="evidence-card">
+              <div class="section-title">Task Tracks</div>
+              <ul class="evidence-list">
+                <li>operations cleanup</li>
+                <li>ml data readiness</li>
+                <li>deterministic autoruns</li>
+                <li>manual workspace</li>
+              </ul>
+            </article>
+          </div>
+        </aside>
+      </section>
+
+      <section class="stats-bar">
+        <article class="stat">
+          <div class="stat-num">6</div>
+          <div class="stat-lbl">Evaluation Tasks</div>
+        </article>
+        <article class="stat">
+          <div class="stat-num">2</div>
+          <div class="stat-lbl">Task Tracks</div>
+        </article>
+        <article class="stat">
+          <div class="stat-num">12+</div>
+          <div class="stat-lbl">Typed Actions</div>
+        </article>
+        <article class="stat">
+          <div class="stat-num">100%</div>
+          <div class="stat-lbl">Deterministic Grading</div>
+        </article>
+        <article class="stat">
+          <div class="stat-num">2</div>
+          <div class="stat-lbl">Workbench Modes</div>
+        </article>
+      </section>
+
+      <section class="pipeline-strip">
+        <div class="section-title">How it works</div>
+        <div class="pipeline">
+          <div class="pipe-step">
+            <div class="pipe-node">
+              <div class="icon">01</div>
+              <div class="lbl">step</div>
+              <div class="name">Profile</div>
+            </div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step">
+            <div class="pipe-node">
+              <div class="icon">02</div>
+              <div class="lbl">step</div>
+              <div class="name">Clean</div>
+            </div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step">
+            <div class="pipe-node">
+              <div class="icon">03</div>
+              <div class="lbl">step</div>
+              <div class="name">Review</div>
+            </div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step">
+            <div class="pipe-node">
+              <div class="icon">04</div>
+              <div class="lbl">step</div>
+              <div class="name">Validate</div>
+            </div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step">
+            <div class="pipe-node">
+              <div class="icon">05</div>
+              <div class="lbl">step</div>
+              <div class="name">Export</div>
+            </div>
+          </div>
+          <div class="pipe-arrow">→</div>
+          <div class="pipe-step">
+            <div class="pipe-node final-node">
+              <div class="icon">06</div>
+              <div class="lbl">step</div>
+              <div class="name">Publish</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="track-band-grid">
+        <article class="track-band ops-band">
+          <div class="track-band-head">
+            <span class="track-badge badge-ops">Ops</span>
+            <span class="track-meta">Operations cleanup workflows</span>
+          </div>
+          <div class="track-band-body">
+            <div class="track-band-copy">
+              <h2>Operational datasets cleaned through governed actions.</h2>
+              <p>
+                Contact, order, and appointment tasks model the messy exports teams actually have
+                to normalize before downstream systems can trust them.
+              </p>
+            </div>
+            <ul class="task-list">
+              <li>easy_contacts_cleanup — CRM contact normalization</li>
+              <li>medium_orders_cleanup — order data cleanup</li>
+              <li>hard_appointments_cleanup — scheduling data repair</li>
+            </ul>
+          </div>
+        </article>
+
+        <article class="track-band ml-band">
+          <div class="track-band-head">
+            <span class="track-badge badge-ml">ML Prep</span>
+            <span class="track-meta">Model-ready feature tables</span>
+          </div>
+          <div class="track-band-body">
+            <ul class="task-list">
+              <li>xgb_churn_easy — churn feature preparation</li>
+              <li>lstm_forecast_medium — forecasting time-series prep</li>
+              <li>lightfm_recs_hard — recommendation interaction prep</li>
+            </ul>
+            <div class="track-band-copy">
+              <h2>ML-bound tables validated before training workflows can touch them.</h2>
+              <p>
+                These tasks focus on deterministic feature cleanup, type safety, canonicalization,
+                and publishable dataset readiness rather than model training itself.
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="tech-stack">
+        <div class="section-title">Tech stack</div>
+        <div class="stack-chips">
+          <span class="chip hi">Python 3.11</span>
+          <span class="chip hi">FastAPI</span>
+          <span class="chip hi">Structured Actions</span>
+          <span class="chip hi">Docker</span>
+          <span class="chip hi">Hugging Face Spaces</span>
+          <span class="chip">Pydantic v2</span>
+          <span class="chip">Uvicorn</span>
+          <span class="chip">WebSockets</span>
+          <span class="chip">SSE</span>
+          <span class="chip">OpenAI client</span>
+          <span class="chip">pytest</span>
+        </div>
+      </section>
+
+      <footer class="landing-footer">
+        <div class="footer-links">
+          <a href="/schema">/schema</a>
+          <a href="/metadata">/metadata</a>
+          <a href="/health">/health</a>
+          <a href="/docs">API docs</a>
+          <a href="https://github.com/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">GitHub</a>
+          <a href="https://huggingface.co/spaces/lilpookie404/openenv-tabular-cleaning-2" target="_blank" rel="noreferrer">HF Space</a>
+        </div>
+        <p>TabulaClean · Reviewable spreadsheet cleanup · Deterministic evaluation</p>
+      </footer>
+    </main>
+  </body>
+</html>

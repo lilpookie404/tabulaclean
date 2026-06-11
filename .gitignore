@@ -7,12 +7,16 @@ __pycache__/
 *.egg
 dist/
 build/
+.tox/
+.nox/
+.hypothesis/
 
 # Virtual environments
 .venv/
 .venv_tmp/
 venv/
 env/
+ENV/
 
 # Testing / tooling
 .pytest_cache/
@@ -20,14 +24,61 @@ env/
 .ruff_cache/
 htmlcov/
 .coverage
+.coverage.*
+coverage.xml
+test-results/
+pytest-report.xml
+junit.xml
+
+# Node / frontend
+node_modules/
+.npm/
+.yarn/
+.pnpm-store/
+.vite/
+.parcel-cache/
+.next/
+.nuxt/
+frontend/dist/
+frontend/build/
+
+# Uploaded user data and generated exports
+uploads/
+uploaded_files/
+user_uploads/
+exports/
+tmp/
+temp/
+*.tmp.csv
+*.tmp.xlsx
+*.tmp.xls
+*_cleaned.csv
+*_cleaned.xlsx
+*_cleaned.xls
+
+# Local diagnostics and failure artifacts
+failure-logs/
+failures/local/
+*.failure.log
+*.local.log
+*.trace
 
 # IDE / OS
 .DS_Store
+Thumbs.db
 .idea/
 .vscode/
+*.code-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 *.swp
+*.swo
 *~
 
-# Secrets
+# Secrets and local configuration
 .env
 .env.*
+!.env.example
+!.env.sample

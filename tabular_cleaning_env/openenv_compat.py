@@ -187,8 +187,8 @@ def create_app(
     The upstream HTTP helper currently publishes generic OpenAPI examples
     (including `reward: 1.0`) and narrows `/state` plus `/schema.state` to the
     base `State` model, which strips task-specific score fields from the public
-    contract. For hackathon validation we want the exact environment state and
-    schema emitted by this repo.
+    contract. This project requires the exact environment state and schema
+    emitted by this repository.
     """
 
     app = FastAPI(title=env_name, version="1.0.0")

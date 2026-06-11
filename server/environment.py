@@ -299,7 +299,7 @@ class TabularCleaningEnvironment(Environment):
                 "audit logs, human review, validation gates, and export/publish workflow."
             ),
             "version": "0.2.0",
-            "author": "OpenEnv Hackathon Submission",
+            "author": "Project Maintainers",
         }
 
     def _build_observation(
