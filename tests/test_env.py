@@ -29,6 +29,9 @@ def test_root_page_has_core_links() -> None:
     assert "/metadata" in response.text
     assert "/schema" in response.text
     assert "/health" in response.text
+    assert "https://github.com/lilpookie404/tabulaclean" in response.text
+    assert "https://huggingface.co/spaces/lilpookie404/tabulaclean" in response.text
+    assert "openenv-tabular-cleaning-2" not in response.text
 
 
 def test_play_page_loads_workbench_assets() -> None:
