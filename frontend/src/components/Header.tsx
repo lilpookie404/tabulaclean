@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import BackendStatus from "./BackendStatus";
 import PageContainer from "./PageContainer";
 
 const navigationItems = [
@@ -35,6 +36,7 @@ export default function Header() {
         <nav aria-label="Primary navigation" className="desktop-navigation">
           <NavigationLinks />
         </nav>
+        <BackendStatus />
         <details className="mobile-navigation">
           <summary>Menu</summary>
           <nav aria-label="Mobile navigation">

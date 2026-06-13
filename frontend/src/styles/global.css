@@ -103,6 +103,44 @@ a {
   display: none;
 }
 
+.backend-status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.45rem 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--paper);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.backend-status-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: #9b6811;
+}
+
+.backend-status.connected .backend-status-dot {
+  background: #247147;
+}
+
+.backend-status.unavailable .backend-status-dot {
+  background: var(--coral-text);
+}
+
+.backend-status button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  text-decoration: underline;
+}
+
 .page-container {
   width: min(1120px, calc(100% - 2rem));
   min-height: 100vh;
@@ -538,6 +576,10 @@ a {
 
   .mobile-navigation {
     display: block;
+  }
+
+  .backend-status {
+    margin-left: auto;
   }
 
   .mobile-navigation summary {
