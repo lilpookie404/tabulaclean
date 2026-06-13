@@ -1,15 +1,15 @@
-import PageContainer from "../components/PageContainer";
-import PlaceholderCard from "../components/PlaceholderCard";
+import PhaseBoundaryCallout from "../components/PhaseBoundaryCallout";
+import ProductIntro from "../components/ProductIntro";
+import ProductPrinciples from "../components/ProductPrinciples";
+import WorkspacePreview from "../components/WorkspacePreview";
 
 export default function CleanMyFilePage() {
   return (
-    <PageContainer>
-      <h1>Clean My File</h1>
-      <PlaceholderCard
-        description="CSV and Excel upload sessions arrive in Phase 2. This phase establishes the application shell and backend connection."
-        eyebrow="Phase 1 foundation"
-        title="Your guided cleaning workspace is taking shape"
-      />
-    </PageContainer>
+    <>
+      <ProductIntro />
+      <WorkspacePreview />
+      <ProductPrinciples />
+      <PhaseBoundaryCallout />
+    </>
   );
 }

@@ -26,7 +26,10 @@ describe("app routes", () => {
     renderRoute("/");
 
     expect(
-      screen.getByRole("heading", { level: 1, name: "Clean My File" })
+      screen.getByRole("heading", {
+        level: 1,
+        name: /Messy data,\s*made clear\./
+      })
     ).toBeInTheDocument();
   });
 

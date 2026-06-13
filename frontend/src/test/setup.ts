@@ -4,5 +4,6 @@ import { afterEach } from "vitest";
 
 afterEach(() => {
   cleanup();
+  document.body.classList.remove("custom-cursor-enabled");
   document.title = "";
 });
