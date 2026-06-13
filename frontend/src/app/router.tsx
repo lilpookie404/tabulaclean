@@ -4,14 +4,14 @@ import FailureCasesPage from "../pages/FailureCasesPage";
 import ModelEvaluationPage from "../pages/ModelEvaluationPage";
 import NotFoundPage from "../pages/NotFoundPage";
 import ReviewChangesPage from "../pages/ReviewChangesPage";
-import RouteErrorPage from "../pages/RouteErrorPage";
 import AppShell from "./AppShell";
+import RouteErrorShell from "./RouteErrorShell";
 
 export const appRoutes: RouteObject[] = [
   {
     path: "/",
     element: <AppShell />,
-    errorElement: <RouteErrorPage />,
+    errorElement: <RouteErrorShell />,
     children: [
       {
         index: true,

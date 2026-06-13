@@ -12,8 +12,11 @@ export default function RouteTitle() {
   const { pathname } = useLocation();
 
   useEffect(() => {
+    const normalizedPathname =
+      pathname === "/" ? pathname : pathname.replace(/\/+$/, "");
+
     document.title =
-      routeTitles[pathname] ?? "Page Not Found | TabulaClean";
+      routeTitles[normalizedPathname] ?? "Page Not Found | TabulaClean";
   }, [pathname]);
 
   return null;

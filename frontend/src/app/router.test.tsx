@@ -5,12 +5,16 @@ import {
   waitFor,
   within
 } from "@testing-library/react";
-import { createMemoryRouter, RouterProvider } from "react-router-dom";
+import {
+  createMemoryRouter,
+  RouterProvider,
+  type RouteObject
+} from "react-router-dom";
 import { describe, expect, it } from "vitest";
 import { appRoutes } from "./router";
 
-function renderRoute(path: string) {
-  const router = createMemoryRouter(appRoutes, {
+function renderRoute(path: string, routes: RouteObject[] = appRoutes) {
+  const router = createMemoryRouter(routes, {
     initialEntries: [path]
   });
 
@@ -54,6 +58,60 @@ describe("app routes", () => {
 
   it("updates the document title for the model evaluation route", async () => {
     renderRoute("/model-evaluation");
+
+    await waitFor(() => {
+      expect(document.title).toBe("Model Evaluation | TabulaClean");
+    });
+  });
+
+  it("keeps the application shell around a friendly route error", async () => {
+    const rootRoute = appRoutes[0];
+    const routesWithFailure: RouteObject[] = [
+      {
+        path: rootRoute.path,
+        element: rootRoute.element,
+        errorElement: rootRoute.errorElement,
+        children: [
+          ...(rootRoute.children ?? []),
+          {
+            path: "route-error-test",
+            loader: () => {
+              throw new Error("Sensitive internal details");
+            },
+            element: <div />
+          }
+        ]
+      }
+    ];
+
+    renderRoute("/route-error-test", routesWithFailure);
+
+    expect(
+      await screen.findByRole("link", { name: "TabulaClean" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("navigation", { name: "Primary navigation" })
+    ).toBeInTheDocument();
+
+    const main = screen.getByRole("main");
+    expect(
+      within(main).getByRole("heading", {
+        level: 1,
+        name: "We could not open this page"
+      })
+    ).toBeInTheDocument();
+    expect(
+      within(main).getByText(
+        "Something went wrong while opening this page. Please return to Clean My File and try again."
+      )
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sensitive internal details")
+    ).not.toBeInTheDocument();
+  });
+
+  it("normalizes a trailing slash when updating the document title", async () => {
+    renderRoute("/model-evaluation/");
 
     await waitFor(() => {
       expect(document.title).toBe("Model Evaluation | TabulaClean");
