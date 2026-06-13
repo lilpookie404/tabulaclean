@@ -1,5 +1,6 @@
 .git
 .github
+.superpowers
 .venv
 .pytest_cache
 __pycache__
@@ -13,3 +14,15 @@ build
 dist
 .DS_Store
 tests
+frontend/node_modules
+frontend/dist
+frontend/coverage
+frontend/.eslintcache
+test-results
+failure-logs
+uploads
+uploaded_files
+user_uploads
+exports
+*.local.log
+*.failure.log
