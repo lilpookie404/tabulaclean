@@ -1,3 +1,6 @@
+import { RouterProvider } from "react-router-dom";
+import { appRouter } from "./app/router";
+
 export default function App() {
-  return <h1>TabulaClean</h1>;
+  return <RouterProvider router={appRouter} />;
 }
