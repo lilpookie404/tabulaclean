@@ -12,10 +12,10 @@ The intended product workflow is:
 5. validate the cleaned data
 6. download the cleaned file and audit summary
 
-Upload and download APIs are not part of Phase 0. The current repository
-provides the cleaning engine, structured actions, review gates, validation
-logic, static workbench, and evaluation tasks that later product phases can
-build on.
+Upload and download APIs are not part of Phase 1. The current repository
+provides the React product shell, cleaning engine, structured actions, review
+gates, validation logic, advanced workbench, and evaluation tasks that later
+product phases can build on.
 
 ## Evaluation Layer
 
@@ -36,5 +36,9 @@ users decide whether their cleaned spreadsheet is ready to download.
 Phase 0 covers repository preparation, visible product identity, documentation,
 static copy, and safer ignore rules.
 
-Phase 1 will cover the React, TypeScript, and Vite migration. It is intentionally
-outside the scope of this phase.
+Phase 1 provides the React, TypeScript, and Vite foundation, product routes,
+backend health status, production FastAPI serving, and a combined Docker build.
+
+Phase 2 will add upload sessions and real CSV/XLSX handling. Spreadsheet
+parsing, cleaning-session persistence, AI suggestions, downloadable exports,
+and failure-case storage remain outside Phase 1.

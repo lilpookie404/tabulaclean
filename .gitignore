@@ -41,6 +41,9 @@ node_modules/
 .nuxt/
 frontend/dist/
 frontend/build/
+frontend/coverage/
+frontend/.eslintcache
+.superpowers/
 
 # Uploaded user data and generated exports
 uploads/
