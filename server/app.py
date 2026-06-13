@@ -19,6 +19,7 @@ from tabular_cleaning_env.openenv_compat import create_app
 from tabular_cleaning_env.tasks import TASKS
 
 from .environment import TabularCleaningEnvironment
+from .frontend import install_frontend
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -63,11 +64,6 @@ def _sanitize_runner(runner: str | None) -> str:
 
 def _sse_event(name: str, payload: Dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=True)}\n\n"
-
-
-@app.get("/", include_in_schema=False)
-def index() -> FileResponse:
-    return FileResponse(TEMPLATES_DIR / "index.html")
 
 
 @app.get("/play", include_in_schema=False)
@@ -219,6 +215,9 @@ def autorun_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+install_frontend(app)
 
 
 def main(host: str = "0.0.0.0", port: int = 8000) -> None:

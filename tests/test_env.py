@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 import inference
+import server.frontend as frontend
 from server.app import app
 from server.environment import TabularCleaningEnvironment
 from tabular_cleaning_env.graders import SCORE_MAX, SCORE_MIN, grade_task
@@ -20,18 +23,56 @@ def test_app_import_smoke() -> None:
     assert app is not None
 
 
-def test_root_page_has_core_links() -> None:
+def _write_frontend_build(dist_dir: Path) -> None:
+    assets_dir = dist_dir / "assets"
+    assets_dir.mkdir(parents=True)
+    (dist_dir / "index.html").write_text(
+        "<!doctype html><html><body>TabulaClean React shell</body></html>",
+        encoding="utf-8",
+    )
+    (assets_dir / "app.js").write_text("console.log('TabulaClean')", encoding="utf-8")
+
+
+def test_fastapi_serves_compiled_spa_root_and_deep_links(tmp_path, monkeypatch) -> None:
+    _write_frontend_build(tmp_path)
+    monkeypatch.setattr(frontend, "FRONTEND_DIST_DIR", tmp_path)
     client = TestClient(app)
-    response = client.get("/")
+
+    root = client.get("/", headers={"accept": "text/html"})
+    deep_link = client.get("/review-changes", headers={"accept": "text/html"})
+
+    assert root.status_code == 200
+    assert deep_link.status_code == 200
+    assert "TabulaClean React shell" in root.text
+    assert "TabulaClean React shell" in deep_link.text
+
+
+def test_fastapi_serves_compiled_frontend_assets(tmp_path, monkeypatch) -> None:
+    _write_frontend_build(tmp_path)
+    monkeypatch.setattr(frontend, "FRONTEND_DIST_DIR", tmp_path)
+    response = TestClient(app).get("/assets/app.js")
+
     assert response.status_code == 200
-    assert "/play" in response.text
-    assert "/docs" in response.text
-    assert "/metadata" in response.text
-    assert "/schema" in response.text
-    assert "/health" in response.text
-    assert "https://github.com/lilpookie404/tabulaclean" in response.text
-    assert "https://huggingface.co/spaces/lilpookie404/tabulaclean" in response.text
-    assert "openenv-tabular-cleaning-2" not in response.text
+    assert "TabulaClean" in response.text
+
+
+def test_frontend_fallback_preserves_backend_errors(tmp_path, monkeypatch) -> None:
+    _write_frontend_build(tmp_path)
+    monkeypatch.setattr(frontend, "FRONTEND_DIST_DIR", tmp_path)
+    client = TestClient(app)
+
+    assert client.get("/api/missing", headers={"accept": "text/html"}).status_code == 404
+    assert client.get("/reset", headers={"accept": "text/html"}).status_code == 405
+    assert client.get("/health").json() == {"status": "healthy"}
+
+
+def test_frontend_route_reports_missing_build(tmp_path, monkeypatch) -> None:
+    missing_dist = tmp_path / "missing"
+    monkeypatch.setattr(frontend, "FRONTEND_DIST_DIR", missing_dist)
+    response = TestClient(app).get("/", headers={"accept": "text/html"})
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == frontend.MISSING_BUILD_MESSAGE
 
 
 def test_play_page_loads_workbench_assets() -> None:
