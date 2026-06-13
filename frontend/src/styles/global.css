@@ -1,0 +1,15 @@
+:root {
+  font-family: "DM Sans", system-ui, sans-serif;
+  color: #17372f;
+  background: #f4f1e8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+}
