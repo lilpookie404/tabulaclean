@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 
 const interactiveSelector =
-  "a, button, input, textarea, select, [role='button'], [contenteditable='true']";
+  "a, button, input, textarea, select, summary, [role='button'], [contenteditable='true']";
 
 function canUseCustomCursor() {
   if (typeof window.matchMedia !== "function") {
@@ -15,8 +15,31 @@ function canUseCustomCursor() {
 }
 
 export default function CustomCursor() {
-  const [enabled] = useState(canUseCustomCursor);
+  const [enabled, setEnabled] = useState(canUseCustomCursor);
   const cursorRef = useRef<HTMLSpanElement>(null);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const finePointerQuery = window.matchMedia("(pointer: fine)");
+    const reducedMotionQuery = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    );
+    const updateEligibility = () => {
+      setEnabled(finePointerQuery.matches && !reducedMotionQuery.matches);
+    };
+
+    updateEligibility();
+    finePointerQuery.addEventListener("change", updateEligibility);
+    reducedMotionQuery.addEventListener("change", updateEligibility);
+
+    return () => {
+      finePointerQuery.removeEventListener("change", updateEligibility);
+      reducedMotionQuery.removeEventListener("change", updateEligibility);
+    };
+  }, []);
 
   useEffect(() => {
     const cursor = cursorRef.current;
