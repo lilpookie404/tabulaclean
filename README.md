@@ -16,9 +16,9 @@ The product direction is a guided workflow where users upload a spreadsheet,
 preview data issues, review suggested fixes, approve risky changes, validate
 the cleaned data, and download a trustworthy result.
 
-This repository currently provides the cleaning engine, review workflow,
-validation behavior, static workbench, and a deterministic evaluation suite.
-CSV/XLSX upload APIs and the React frontend are planned for later phases and
+This repository now provides the React product shell, cleaning engine, review
+workflow, validation behavior, advanced evaluation workbench, and deterministic
+evaluation suite. Real CSV/XLSX upload sessions remain planned for Phase 2 and
 are not implemented yet.
 
 ## Project Direction
@@ -315,7 +315,7 @@ Reproducible baseline scores:
 
 ## Quick Start
 
-### Local setup
+### Backend only
 
 ```bash
 python3.11 -m venv .venv
@@ -325,6 +325,43 @@ python3 -m pip install -r requirements-dev.txt
 python3 -m pytest -q
 uvicorn server.app:app --host 0.0.0.0 --port 8000
 ```
+
+Backend-only mode keeps `/health`, `/play`, the evaluation APIs, and all
+compatibility routes available. Product frontend routes return an explicit
+missing-build response until the React application is built.
+
+### Frontend development
+
+Run FastAPI on port `8000`, then start Vite in a second terminal:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Open `http://localhost:5173`. Vite proxies backend and legacy-workbench routes
+to `http://localhost:8000`.
+
+### Production frontend build
+
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
+uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+Open `http://localhost:8000`. FastAPI serves the compiled React application and
+keeps `/play` available as the advanced evaluation workspace.
+
+## Phase 1 Boundary
+
+Phase 1 provides the React product shell, responsive routes, backend health
+status, production static serving, and the combined Docker build. Phase 2 will
+add real upload sessions and CSV/XLSX handling. The current placeholders do not
+upload, parse, clean, store, or download user files.
 
 ### Run inference
 
@@ -358,7 +395,7 @@ Local validation commands:
 ```bash
 python3 -m pytest -q
 python3 inference.py
-docker build -t tabular-cleaning-env .
+docker build -t tabulaclean .
 openenv validate http://localhost:8000
 ```
 
@@ -381,8 +418,8 @@ The project includes the core runtime files:
 Build and run locally:
 
 ```bash
-docker build -t tabular-cleaning-env .
-docker run --rm -p 8000:8000 tabular-cleaning-env
+docker build -t tabulaclean .
+docker run --rm -p 8000:8000 tabulaclean
 ```
 
 Then validate the live container:
