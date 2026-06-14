@@ -16,10 +16,10 @@ The product direction is a guided workflow where users upload a spreadsheet,
 preview data issues, review suggested fixes, approve risky changes, validate
 the cleaned data, and download a trustworthy result.
 
-This repository now provides the React product shell, cleaning engine, review
-workflow, validation behavior, advanced evaluation workbench, and deterministic
-evaluation suite. Real CSV/XLSX upload sessions remain planned for Phase 2 and
-are not implemented yet.
+This repository now provides the React product shell, temporary CSV/XLSX
+upload sessions, table previews, basic quality checks, CSV download, the
+cleaning engine, and the advanced evaluation suite. Manual cleaning and
+AI-assisted suggestions remain later product phases.
 
 ## Project Direction
 
@@ -64,8 +64,28 @@ The cleaning workflow is:
 5. run validation checks
 6. export a cleaned result with an audit trail
 
-The current static workbench previews this governed workflow using bundled
-evaluation tasks.
+The current product workspace implements upload, preview, basic issue
+detection, and unchanged CSV download. The advanced workbench continues to
+exercise the governed cleaning workflow with bundled evaluation tasks.
+
+## Upload Sessions
+
+The product API supports temporary, process-local spreadsheet sessions:
+
+- `POST /api/uploads` accepts one `.csv` or `.xlsx` file.
+- `GET /api/sessions/{session_id}` restores the current session snapshot.
+- `GET /api/sessions/{session_id}/download` downloads the unchanged current
+  table as UTF-8 BOM CSV.
+
+Uploads are limited to 10 MB, 100,000 rows, and 200 columns. Sessions expire
+after 30 minutes of inactivity and are removed when the application restarts.
+Only the active session ID is stored in browser `sessionStorage`; spreadsheet
+contents are not persisted to disk.
+
+Phase 2 detects grouped findings for missing values, duplicate rows, padded
+values, problematic column names, numeric-looking text, empty columns, and
+inconsistent date formats. These checks describe the source data and do not
+modify it.
 
 ## Design Goals
 
@@ -356,12 +376,13 @@ uvicorn server.app:app --host 0.0.0.0 --port 8000
 Open `http://localhost:8000`. FastAPI serves the compiled React application and
 keeps `/play` available as the advanced evaluation workspace.
 
-## Phase 1 Boundary
+## Phase 2 Boundary
 
-Phase 1 provides the React product shell, responsive routes, backend health
-status, production static serving, and the combined Docker build. Phase 2 will
-add real upload sessions and CSV/XLSX handling. The current placeholders do not
-upload, parse, clean, store, or download user files.
+Phase 2 provides temporary CSV/XLSX upload sessions, source-data previews,
+basic grouped issue detection, same-tab session restoration, and unchanged CSV
+download. It does not add manual cleaning actions, AI suggestions, approval
+queues, validation workflows, failure-case storage, or permanent spreadsheet
+storage.
 
 ### Run inference
 

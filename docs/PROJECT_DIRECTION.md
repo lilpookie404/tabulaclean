@@ -12,10 +12,11 @@ The intended product workflow is:
 5. validate the cleaned data
 6. download the cleaned file and audit summary
 
-Upload and download APIs are not part of Phase 1. The current repository
-provides the React product shell, cleaning engine, structured actions, review
-gates, validation logic, advanced workbench, and evaluation tasks that later
-product phases can build on.
+The current repository provides the React product shell, temporary CSV/XLSX
+upload sessions, source-data previews, basic quality checks, unchanged CSV
+download, the cleaning engine, structured actions, review gates, validation
+logic, advanced workbench, and evaluation tasks that later product phases can
+build on.
 
 ## Evaluation Layer
 
@@ -39,6 +40,11 @@ static copy, and safer ignore rules.
 Phase 1 provides the React, TypeScript, and Vite foundation, product routes,
 backend health status, production FastAPI serving, and a combined Docker build.
 
-Phase 2 will add upload sessions and real CSV/XLSX handling. Spreadsheet
-parsing, cleaning-session persistence, AI suggestions, downloadable exports,
-and failure-case storage remain outside Phase 1.
+Phase 2 adds process-local upload sessions for CSV and XLSX files, a 20-row
+preview, grouped issue detection, same-tab session restoration, and unchanged
+CSV download. Sessions expire after 30 minutes of inactivity and intentionally
+disappear when the server restarts.
+
+Phase 3 will add the manual cleaning workflow. AI suggestions, approval queues,
+validation of cleaned results, permanent file storage, and failure-case
+storage remain outside Phase 2.
