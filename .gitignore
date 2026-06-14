@@ -46,12 +46,12 @@ frontend/.eslintcache
 .superpowers/
 
 # Uploaded user data and generated exports
-uploads/
-uploaded_files/
-user_uploads/
-exports/
-tmp/
-temp/
+/uploads/
+/uploaded_files/
+/user_uploads/
+/exports/
+/tmp/
+/temp/
 *.tmp.csv
 *.tmp.xlsx
 *.tmp.xls
