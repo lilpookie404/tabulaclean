@@ -148,3 +148,42 @@ def test_parse_xlsx_rejects_suspicious_archive_expansion() -> None:
 
     assert captured.value.code == "file_too_large"
     assert captured.value.status_code == 413
+
+
+def test_parse_xlsx_rejects_oversized_dimensions_before_reading_rows(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class OversizedSheet:
+        sheet_state = "visible"
+        title = "Oversized"
+        max_row = 3
+        max_column = 1
+
+        def iter_rows(self, *, values_only: bool):
+            del values_only
+            raise AssertionError("Rows should not be materialized after the dimension check.")
+
+    class FakeWorkbook:
+        worksheets = [OversizedSheet()]
+
+        def close(self) -> None:
+            pass
+
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("xl/workbook.xml", "<workbook />")
+
+    monkeypatch.setattr(
+        "server.uploads.parser.load_workbook",
+        lambda *_args, **_kwargs: FakeWorkbook(),
+    )
+
+    with pytest.raises(UploadError) as captured:
+        parse_upload(
+            "oversized.xlsx",
+            buffer.getvalue(),
+            limits=ParseLimits(max_rows=1),
+        )
+
+    assert captured.value.code == "table_too_large"
+    assert captured.value.status_code == 413

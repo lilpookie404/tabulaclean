@@ -167,11 +167,38 @@ def _parse_xlsx(filename: str, payload: bytes, limits: ParseLimits) -> ParsedTab
         if visible_sheet is None:
             raise _invalid_file("The Excel workbook does not contain a visible worksheet.")
 
-        values = [list(row) for row in visible_sheet.iter_rows(values_only=True)]
-        if not values:
+        if (
+            max((visible_sheet.max_row or 0) - 1, 0) > limits.max_rows
+            or (visible_sheet.max_column or 0) > limits.max_columns
+        ):
+            raise UploadError(
+                413,
+                "table_too_large",
+                (
+                    f"Please use a table with at most {limits.max_rows:,} rows "
+                    f"and {limits.max_columns:,} columns."
+                ),
+            )
+
+        row_iterator = visible_sheet.iter_rows(values_only=True)
+        try:
+            headers = list(next(row_iterator))
+        except StopIteration:
             raise UploadError(422, "empty_table", "The spreadsheet does not contain any data rows.")
-        headers = values[0]
-        rows = values[1:]
+
+        rows: list[list[Any]] = []
+        for row_number, row in enumerate(row_iterator, start=1):
+            if row_number > limits.max_rows or len(row) > limits.max_columns:
+                raise UploadError(
+                    413,
+                    "table_too_large",
+                    (
+                        f"Please use a table with at most {limits.max_rows:,} rows "
+                        f"and {limits.max_columns:,} columns."
+                    ),
+                )
+            rows.append(list(row))
+
         return _build_table(
             filename=filename,
             sheet_name=visible_sheet.title,

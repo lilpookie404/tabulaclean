@@ -125,3 +125,21 @@ def test_store_enforces_total_dataframe_memory_budget() -> None:
     assert captured.value.status_code == 503
     assert captured.value.code == "session_capacity"
     assert store.active_count == 0
+
+
+def test_store_rejects_estimated_capacity_before_copying_dataframe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    parsed = _parsed()
+    profile = profile_table(parsed)
+    store = SessionStore(max_total_bytes=(parsed.memory_bytes * 2) - 1)
+
+    def fail_copy(*_args, **_kwargs):
+        raise AssertionError("Capacity should be checked before DataFrames are copied.")
+
+    monkeypatch.setattr(pd.DataFrame, "copy", fail_copy)
+
+    with pytest.raises(UploadError) as captured:
+        store.create(parsed, profile)
+
+    assert captured.value.code == "session_capacity"

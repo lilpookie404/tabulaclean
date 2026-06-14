@@ -84,19 +84,27 @@ class SessionStore:
             now = self._clock()
             self._remove_expired(now)
 
+            used_bytes = sum(
+                session.memory_bytes for session in self._sessions.values()
+            )
+            estimated_bytes = parsed.memory_bytes * 2
+            if (
+                len(self._sessions) >= self._max_sessions
+                or used_bytes + estimated_bytes > self._max_total_bytes
+            ):
+                raise UploadError(
+                    503,
+                    "session_capacity",
+                    "TabulaClean is temporarily holding the maximum number of active files. Please try again shortly.",
+                )
+
             original = parsed.dataframe.copy(deep=True)
             current = parsed.dataframe.copy(deep=True)
             memory_bytes = int(
                 original.memory_usage(index=True, deep=True).sum()
                 + current.memory_usage(index=True, deep=True).sum()
             )
-            used_bytes = sum(
-                session.memory_bytes for session in self._sessions.values()
-            )
-            if (
-                len(self._sessions) >= self._max_sessions
-                or used_bytes + memory_bytes > self._max_total_bytes
-            ):
+            if used_bytes + memory_bytes > self._max_total_bytes:
                 raise UploadError(
                     503,
                     "session_capacity",
