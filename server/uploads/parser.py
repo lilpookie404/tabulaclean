@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any
+from xml.etree.ElementTree import ParseError
 from zipfile import BadZipFile, ZipFile
 
 import pandas as pd
@@ -47,6 +48,17 @@ def _display_header(value: Any) -> str:
     return str(value)
 
 
+def _is_populated(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    try:
+        return not bool(pd.isna(value))
+    except (TypeError, ValueError):
+        return True
+
+
 def _build_table(
     *,
     filename: str,
@@ -69,6 +81,12 @@ def _build_table(
     dataframe.reset_index(drop=True, inplace=True)
 
     if dataframe.empty:
+        raise UploadError(422, "empty_table", "The spreadsheet does not contain any data rows.")
+    if not any(
+        _is_populated(value)
+        for row in dataframe.itertuples(index=False, name=None)
+        for value in row
+    ):
         raise UploadError(422, "empty_table", "The spreadsheet does not contain any data rows.")
     if len(dataframe) > limits.max_rows or len(dataframe.columns) > limits.max_columns:
         raise UploadError(
@@ -117,6 +135,7 @@ def _parse_csv(filename: str, payload: bytes, limits: ParseLimits) -> ParsedTabl
             sep=",",
             engine="python",
             on_bad_lines="error",
+            skip_blank_lines=False,
         )
     except (pd.errors.ParserError, UnicodeError, ValueError) as exc:
         raise _invalid_file("The CSV file is malformed or could not be read.") from exc
@@ -156,7 +175,15 @@ def _parse_xlsx(filename: str, payload: bytes, limits: ParseLimits) -> ParsedTab
     _inspect_xlsx(payload, limits)
     try:
         workbook = load_workbook(BytesIO(payload), read_only=True, data_only=True)
-    except (BadZipFile, InvalidFileException, KeyError, OSError, ValueError) as exc:
+    except (
+        BadZipFile,
+        EOFError,
+        InvalidFileException,
+        KeyError,
+        OSError,
+        ParseError,
+        ValueError,
+    ) as exc:
         raise _invalid_file("The Excel workbook is corrupt, encrypted, or unreadable.") from exc
 
     try:

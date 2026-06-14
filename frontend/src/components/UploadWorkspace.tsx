@@ -118,6 +118,9 @@ export default function UploadWorkspace() {
 
           {state === "success" && session ? (
             <>
+              <p className="visually-hidden" role="status">
+                Spreadsheet uploaded successfully. Preview and quality checks are ready.
+              </p>
               <div className="workspace-success-heading">
                 <div>
                   <p className="eyebrow">Spreadsheet ready</p>

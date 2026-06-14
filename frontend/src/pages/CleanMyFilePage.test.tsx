@@ -160,6 +160,9 @@ describe("CleanMyFilePage", () => {
     });
 
     expect(await screen.findByText("Here’s what we found.")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Spreadsheet uploaded successfully"
+    );
     expect(screen.getByText("customer-contacts.xlsx")).toBeInTheDocument();
     expect(screen.getByText("First visible sheet: Contacts")).toBeInTheDocument();
     expect(screen.getByText("1,240")).toBeInTheDocument();

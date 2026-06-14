@@ -58,6 +58,17 @@ def test_parse_csv_accepts_utf8_bom_and_windows_1252() -> None:
     assert windows.dataframe.iloc[0, 0] == "Montréal"
 
 
+def test_parse_csv_preserves_blank_rows_for_source_row_numbers() -> None:
+    parsed = parse_upload(
+        "contacts.csv",
+        b"name,email\nAarav,a@example.com\n,\nMeera,m@example.com\n",
+    )
+
+    assert parsed.dataframe.shape == (3, 2)
+    assert parsed.dataframe.iloc[1].tolist() == ["", ""]
+    assert parsed.dataframe.iloc[2, 0] == "Meera"
+
+
 def test_parse_xlsx_uses_first_visible_worksheet() -> None:
     parsed = parse_upload(
         "contacts.xlsx",
@@ -77,6 +88,27 @@ def test_parse_xlsx_uses_first_visible_worksheet() -> None:
         "column_1": "Meera",
         "column_2": "2026-03-14",
     }
+
+
+@pytest.mark.parametrize(
+    ("filename", "payload"),
+    [
+        ("blank.csv", b"name,email\n,\n"),
+        (
+            "blank.xlsx",
+            _workbook_bytes(visible_rows=[["name", "email"], [None, None]]),
+        ),
+    ],
+)
+def test_parse_upload_rejects_tables_without_populated_data_rows(
+    filename: str,
+    payload: bytes,
+) -> None:
+    with pytest.raises(UploadError) as captured:
+        parse_upload(filename, payload)
+
+    assert captured.value.code == "empty_table"
+    assert captured.value.status_code == 422
 
 
 @pytest.mark.parametrize(
@@ -148,6 +180,20 @@ def test_parse_xlsx_rejects_suspicious_archive_expansion() -> None:
 
     assert captured.value.code == "file_too_large"
     assert captured.value.status_code == 413
+
+
+def test_parse_xlsx_returns_friendly_error_for_malformed_workbook_xml() -> None:
+    buffer = BytesIO()
+    with ZipFile(buffer, "w", ZIP_DEFLATED) as archive:
+        archive.writestr("[Content_Types].xml", "<Types>")
+        archive.writestr("_rels/.rels", "<Relationships>")
+        archive.writestr("xl/workbook.xml", "<workbook>")
+
+    with pytest.raises(UploadError) as captured:
+        parse_upload("malformed.xlsx", buffer.getvalue())
+
+    assert captured.value.code == "invalid_file"
+    assert captured.value.status_code == 422
 
 
 def test_parse_xlsx_rejects_oversized_dimensions_before_reading_rows(
