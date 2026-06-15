@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from threading import Event, Thread
 from uuid import UUID
 
 import pandas as pd
@@ -143,3 +144,42 @@ def test_store_rejects_estimated_capacity_before_copying_dataframe(
         store.create(parsed, profile)
 
     assert captured.value.code == "session_capacity"
+
+
+def test_read_callback_holds_store_lock_until_serialization_finishes() -> None:
+    store = SessionStore()
+    parsed = _parsed()
+    session = store.create(parsed, profile_table(parsed))
+    reader_started = Event()
+    release_reader = Event()
+    mutation_started = Event()
+    mutation_finished = Event()
+
+    def reader(_session) -> str:
+        reader_started.set()
+        assert release_reader.wait(timeout=2)
+        return "snapshot"
+
+    read_result: list[str] = []
+    read_thread = Thread(
+        target=lambda: read_result.append(store.read(session.session_id, reader))
+    )
+    read_thread.start()
+    assert reader_started.wait(timeout=2)
+
+    def read_session() -> None:
+        mutation_started.set()
+        store.get(session.session_id)
+        mutation_finished.set()
+
+    mutation_thread = Thread(target=read_session)
+    mutation_thread.start()
+    assert mutation_started.wait(timeout=2)
+    assert not mutation_finished.wait(timeout=0.05)
+
+    release_reader.set()
+    read_thread.join(timeout=2)
+    mutation_thread.join(timeout=2)
+
+    assert read_result == ["snapshot"]
+    assert mutation_finished.is_set()

@@ -1,5 +1,7 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { useUploadSession } from "../uploads/useUploadSession";
+import type { UploadIssue } from "../uploads/types";
+import FixSidePanel from "./FixSidePanel";
 import IssueSummary from "./IssueSummary";
 import TablePreview from "./TablePreview";
 import UploadProgress from "./UploadProgress";
@@ -69,8 +71,19 @@ function UploadPicker({ busy = false, buttonLabel = "Choose file", onFile }: Upl
 }
 
 export default function UploadWorkspace() {
-  const { state, session, message, uploadFile, resetSession, downloadUrl } =
-    useUploadSession();
+  const {
+    state,
+    session,
+    message,
+    uploadFile,
+    resetSession,
+    downloadUrl,
+    operationState,
+    operationMessage,
+    previewChange,
+    submitChange
+  } = useUploadSession();
+  const [selectedIssue, setSelectedIssue] = useState<UploadIssue | null>(null);
   const isWaiting = state === "initial" || state === "error" || state === "expired";
 
   return (
@@ -80,7 +93,10 @@ export default function UploadWorkspace() {
         <p>Upload a spreadsheet, understand its basic quality issues, and keep control of what happens next.</p>
       </div>
       <div className="workspace-frame upload-workspace">
-        <UploadProgress state={state} />
+        <UploadProgress
+          hasPendingReview={Boolean(session?.pending_change)}
+          state={state}
+        />
         <div className="workspace-main">
           {state === "restoring" ? (
             <div aria-label="Restoring spreadsheet session" className="workspace-state" role="status">
@@ -140,24 +156,72 @@ export default function UploadWorkspace() {
                 <article className="file-summary-card"><strong>{session.column_count.toLocaleString()}</strong><span>columns</span></article>
                 <article className="file-summary-card"><strong>{session.issue_count.toLocaleString()}</strong><span>issue groups</span></article>
               </div>
-              <IssueSummary issues={session.issues} />
+              {session.pending_change ? (
+                <div className="pending-review-banner" role="status">
+                  <div>
+                    <strong>{session.pending_change.summary} is waiting for review</strong>
+                    <p>The current table has not changed yet.</p>
+                  </div>
+                  <a className="button button-coral" href="/review-changes">
+                    Review pending change
+                  </a>
+                </div>
+              ) : null}
+              {session.applied_change_count > 0 ? (
+                <p className="approved-change-count">
+                  {session.applied_change_count.toLocaleString()} approved{" "}
+                  {session.applied_change_count === 1 ? "change" : "changes"}
+                </p>
+              ) : null}
+              <IssueSummary
+                disabled={Boolean(session.pending_change)}
+                issues={session.issues}
+                onReviewFix={setSelectedIssue}
+              />
               <div className="preview-layout">
                 <TablePreview session={session} />
                 <aside className="suggestions-card">
-                  <p className="eyebrow">Next phase</p>
-                  <h4>Suggested fixes</h4>
-                  <span className="phase-badge">Available in Phase 3</span>
-                  <p>TabulaClean will explain possible changes and ask for approval where the result could be risky.</p>
+                  <p className="eyebrow">Current result</p>
+                  <h4>Download current table</h4>
+                  <p>Only approved changes are included. Formal validation has not run yet.</p>
+                  {session.download_warnings.map((warning) => (
+                    <div className="download-warning" key={warning.code}>
+                      <strong>{warning.title}</strong>
+                      <p>{warning.message}</p>
+                    </div>
+                  ))}
                   {downloadUrl ? (
                     <a className="button button-forest download-button" href={downloadUrl}>
                       Download current CSV
                     </a>
                   ) : null}
                   <p className="download-note">
-                    <strong>Nothing has been changed yet.</strong> This download contains the current uploaded table.
+                    <strong>
+                      {session.applied_change_count
+                        ? `${session.applied_change_count} approved ${
+                            session.applied_change_count === 1 ? "change is" : "changes are"
+                          } included.`
+                        : "Nothing has been changed yet."}
+                    </strong>{" "}
+                    Pending changes are never included.
                   </p>
                 </aside>
               </div>
+              {selectedIssue ? (
+                <FixSidePanel
+                  busy={operationState === "working"}
+                  columns={session.columns}
+                  error={operationMessage}
+                  issue={selectedIssue}
+                  key={selectedIssue.type}
+                  onClose={() => setSelectedIssue(null)}
+                  onPreview={previewChange}
+                  onSubmit={async (action) => {
+                    await submitChange(action);
+                    setSelectedIssue(null);
+                  }}
+                />
+              ) : null}
             </>
           ) : null}
         </div>

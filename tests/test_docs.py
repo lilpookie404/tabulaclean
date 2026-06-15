@@ -18,6 +18,8 @@ def test_readme_contains_core_commands() -> None:
     assert "npm run build" in readme
     assert "docker build -t tabulaclean" in readme
     assert "Phase 2" in readme
+    assert "Phase 3" in readme
+    assert "change-previews" in readme
 
 
 def test_project_direction_marks_phase_one_foundation_complete() -> None:
@@ -25,3 +27,4 @@ def test_project_direction_marks_phase_one_foundation_complete() -> None:
     assert "React, TypeScript, and Vite foundation" in direction
     assert "Phase 2" in direction
     assert "upload sessions" in direction
+    assert "Phase 3 adds deterministic manual cleaning" in direction

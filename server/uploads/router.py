@@ -7,7 +7,7 @@ from datetime import date, datetime
 from io import BytesIO, StringIO
 from pathlib import Path
 import re
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 from fastapi import APIRouter, Request, UploadFile
@@ -17,7 +17,14 @@ import pandas as pd
 from .errors import UploadError
 from .parser import ParseLimits, parse_upload
 from .profiler import profile_table
-from .schemas import PreviewRow, SessionSnapshot
+from .schemas import (
+    ChangePreview,
+    ChangeRequest,
+    DownloadWarning,
+    PreviewRow,
+    RevisionRequest,
+    SessionSnapshot,
+)
 from .store import SessionStore, UploadSession
 
 
@@ -65,8 +72,46 @@ def _snapshot(session: UploadSession) -> SessionSnapshot:
         issue_count=len(session.issues),
         validation_status=session.validation_status,
         audit_log=session.audit_log,
+        revision=session.revision,
+        pending_change=session.pending_change,
+        applied_change_count=len(session.active_actions),
+        can_undo=bool(session.active_actions) and session.pending_change is None,
+        download_warnings=_download_warnings(session),
         expires_at=session.expires_at,
     )
+
+
+def _session_snapshot(session_id: str) -> SessionSnapshot:
+    return session_store.read(session_id, _snapshot)
+
+
+def _mutated_snapshot(
+    session_id: str,
+    mutation: Callable[[], UploadSession],
+) -> SessionSnapshot:
+    return session_store.read(session_id, lambda _: _snapshot(mutation()))
+
+
+def _download_warnings(session: UploadSession) -> list[DownloadWarning]:
+    formula_like_count = sum(
+        1
+        for row in session.current_dataframe.itertuples(index=False, name=None)
+        for value in row
+        if isinstance(value, str) and value.startswith(("=", "+", "-", "@"))
+    )
+    if not formula_like_count:
+        return []
+    return [
+        DownloadWarning(
+            code="formula_like_values",
+            title="Some text may open as a spreadsheet formula",
+            message=(
+                f"{formula_like_count} values begin with characters that spreadsheet "
+                "software may interpret as formulas. TabulaClean has not changed them."
+            ),
+            affected_count=formula_like_count,
+        )
+    ]
 
 
 async def upload_error_handler(_: Request, exc: UploadError) -> JSONResponse:
@@ -89,12 +134,108 @@ async def create_upload_session(file: UploadFile) -> SessionSnapshot:
 
     parsed = parse_upload(filename, payload, limits=parse_limits)
     session = session_store.create(parsed, profile_table(parsed))
-    return _snapshot(session)
+    return _session_snapshot(session.session_id)
 
 
 @router.get("/sessions/{session_id}", response_model=SessionSnapshot)
 def get_upload_session(session_id: str) -> SessionSnapshot:
-    return _snapshot(session_store.get(session_id))
+    return _session_snapshot(session_id)
+
+
+@router.post(
+    "/sessions/{session_id}/change-previews",
+    response_model=ChangePreview,
+)
+def preview_upload_change(
+    session_id: str,
+    request: ChangeRequest,
+) -> ChangePreview:
+    return session_store.preview_change(
+        session_id,
+        expected_revision=request.expected_revision,
+        action=request.action,
+    )
+
+
+@router.post("/sessions/{session_id}/changes", response_model=SessionSnapshot)
+def create_upload_change(
+    session_id: str,
+    request: ChangeRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.create_change(
+            session_id,
+            expected_revision=request.expected_revision,
+            action=request.action,
+        ),
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/changes/{change_id}/approve",
+    response_model=SessionSnapshot,
+)
+def approve_upload_change(
+    session_id: str,
+    change_id: str,
+    request: RevisionRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.approve_change(
+            session_id,
+            change_id,
+            expected_revision=request.expected_revision,
+        ),
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/changes/{change_id}/reject",
+    response_model=SessionSnapshot,
+)
+def reject_upload_change(
+    session_id: str,
+    change_id: str,
+    request: RevisionRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.reject_change(
+            session_id,
+            change_id,
+            expected_revision=request.expected_revision,
+        ),
+    )
+
+
+@router.post("/sessions/{session_id}/undo", response_model=SessionSnapshot)
+def undo_upload_change(
+    session_id: str,
+    request: RevisionRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.undo(
+            session_id,
+            expected_revision=request.expected_revision,
+        ),
+    )
+
+
+@router.post("/sessions/{session_id}/reset", response_model=SessionSnapshot)
+def reset_upload_changes(
+    session_id: str,
+    request: RevisionRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.reset(
+            session_id,
+            expected_revision=request.expected_revision,
+        ),
+    )
 
 
 def _download_filename(filename: str) -> str:
@@ -110,15 +251,18 @@ def _csv_value(value: Any) -> Any:
 
 @router.get("/sessions/{session_id}/download")
 def download_upload_session(session_id: str) -> StreamingResponse:
-    session = session_store.get(session_id)
-    text_buffer = StringIO(newline="")
-    writer = csv.writer(text_buffer, lineterminator="\n")
-    writer.writerow(session.display_headers)
-    for row in session.current_dataframe.itertuples(index=False, name=None):
-        writer.writerow([_csv_value(value) for value in row])
+    def build_download(session: UploadSession) -> tuple[bytes, str]:
+        text_buffer = StringIO(newline="")
+        writer = csv.writer(text_buffer, lineterminator="\n")
+        writer.writerow(session.display_headers)
+        for row in session.current_dataframe.itertuples(index=False, name=None):
+            writer.writerow([_csv_value(value) for value in row])
+        return (
+            text_buffer.getvalue().encode("utf-8-sig"),
+            _download_filename(session.filename),
+        )
 
-    payload = text_buffer.getvalue().encode("utf-8-sig")
-    filename = _download_filename(session.filename)
+    payload, filename = session_store.read(session_id, build_download)
     headers = {
         "Content-Disposition": (
             f"attachment; filename=\"{filename}\"; "
