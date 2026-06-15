@@ -20,6 +20,9 @@ from tabular_cleaning_env.tasks import TASKS
 
 from .environment import TabularCleaningEnvironment
 from .frontend import install_frontend
+from .uploads.errors import UploadError
+from .uploads.router import router as upload_router
+from .uploads.router import upload_error_handler
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -36,6 +39,8 @@ app = create_app(
     env_name="tabular_cleaning_env",
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+app.add_exception_handler(UploadError, upload_error_handler)
+app.include_router(upload_router)
 
 
 def _task_summary(task_id: str) -> Dict[str, Any]:
