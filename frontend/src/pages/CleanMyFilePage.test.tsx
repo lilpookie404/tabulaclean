@@ -70,6 +70,11 @@ const session: UploadSession = {
   issue_count: 2,
   validation_status: "not_run",
   audit_log: [],
+  revision: 0,
+  pending_change: null,
+  applied_change_count: 0,
+  can_undo: false,
+  download_warnings: [],
   expires_at: "2026-06-14T12:30:00Z"
 };
 
@@ -113,7 +118,6 @@ describe("CleanMyFilePage", () => {
     expect(within(progress).getByText("1 · Upload")).toBeInTheDocument();
     expect(within(progress).getByText("2 · Preview")).toBeInTheDocument();
     expect(within(progress).getByText("3 · Review fixes")).toBeInTheDocument();
-    expect(within(progress).getByText("Phase 3")).toBeInTheDocument();
     expect(within(progress).getByText("4 · Download")).toBeInTheDocument();
   });
 
@@ -177,9 +181,8 @@ describe("CleanMyFilePage", () => {
     expect(within(table).getByText("date")).toBeInTheDocument();
 
     expect(
-      screen.getByRole("heading", { name: "Suggested fixes" })
+      screen.getByRole("heading", { name: "Download current table" })
     ).toBeInTheDocument();
-    expect(screen.getByText("Available in Phase 3")).toBeInTheDocument();
     expect(
       screen.getByText("Nothing has been changed yet.")
     ).toBeInTheDocument();
@@ -189,6 +192,138 @@ describe("CleanMyFilePage", () => {
     expect(
       screen.getByRole("button", { name: "Upload another file" })
     ).toBeInTheDocument();
+  });
+
+  it("opens a guided fix panel and applies a safe whitespace fix", async () => {
+    const preview = {
+      base_revision: 0,
+      action_type: "trim_whitespace",
+      summary: "Trim extra spaces",
+      risk: "low",
+      affected_count: 1,
+      affected_unit: "values",
+      unresolved_count: 0,
+      samples: [
+        {
+          row_number: 3,
+          before: { column_1: " Meera Joshi " },
+          after: { column_1: "Meera Joshi" }
+        }
+      ],
+      warnings: []
+    };
+    const updated = {
+      ...session,
+      revision: 1,
+      applied_change_count: 1,
+      can_undo: true,
+      issues: [session.issues[0]],
+      issue_count: 1
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session, 201))
+        .mockResolvedValueOnce(jsonResponse(preview))
+        .mockResolvedValueOnce(jsonResponse(updated))
+    );
+    render(<CleanMyFilePage />);
+    fireEvent.change(screen.getByLabelText("Choose a CSV or XLSX file"), {
+      target: { files: [new File(["xlsx"], "customer-contacts.xlsx")] }
+    });
+    await screen.findByText("Here’s what we found.");
+
+    const whitespaceCard = screen
+      .getByText("Extra spaces were detected")
+      .closest("article");
+    fireEvent.click(
+      within(whitespaceCard as HTMLElement).getByRole("button", {
+        name: "Review fix"
+      })
+    );
+
+    const panel = await screen.findByRole("complementary", {
+      name: "Review fix"
+    });
+    expect(within(panel).getByText("Trim extra spaces")).toBeInTheDocument();
+    fireEvent.click(within(panel).getByRole("button", { name: "Preview change" }));
+    expect(await within(panel).findByText("Meera Joshi")).toBeInTheDocument();
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Apply safe fix" })
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByText("Extra spaces were detected")).not.toBeInTheDocument()
+    );
+    expect(screen.getByText("1 approved change")).toBeInTheDocument();
+  });
+
+  it("queues a risky fix and points the user to Review Changes", async () => {
+    const preview = {
+      base_revision: 0,
+      action_type: "fill_missing",
+      summary: "Fill missing values",
+      risk: "high",
+      affected_count: 1,
+      affected_unit: "cells",
+      unresolved_count: 0,
+      samples: [
+        {
+          row_number: 3,
+          before: { column_2: null },
+          after: { column_2: "Unknown" }
+        }
+      ],
+      warnings: []
+    };
+    const queued = {
+      ...session,
+      pending_change: {
+        ...preview,
+        change_id: "change-1",
+        action: {
+          type: "fill_missing",
+          column_id: "column_2",
+          strategy: "explicit",
+          value: "Unknown"
+        },
+        created_at: "2026-06-15T12:00:00Z"
+      }
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session, 201))
+        .mockResolvedValueOnce(jsonResponse(preview))
+        .mockResolvedValueOnce(jsonResponse(queued))
+    );
+    render(<CleanMyFilePage />);
+    fireEvent.change(screen.getByLabelText("Choose a CSV or XLSX file"), {
+      target: { files: [new File(["xlsx"], "customer-contacts.xlsx")] }
+    });
+    await screen.findByText("Here’s what we found.");
+
+    const missingCard = screen.getByText("Some cells are empty").closest("article");
+    fireEvent.click(
+      within(missingCard as HTMLElement).getByRole("button", {
+        name: "Review fix"
+      })
+    );
+    const panel = await screen.findByRole("complementary", {
+      name: "Review fix"
+    });
+    fireEvent.change(within(panel).getByLabelText("Replacement value"), {
+      target: { value: "Unknown" }
+    });
+    fireEvent.click(within(panel).getByRole("button", { name: "Preview change" }));
+    await within(panel).findByText("Unknown");
+    fireEvent.click(
+      within(panel).getByRole("button", { name: "Send to Review Changes" })
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Review pending change" })
+    ).toHaveAttribute("href", "/review-changes");
   });
 
   it("shows a friendly upload error and keeps retry controls available", async () => {

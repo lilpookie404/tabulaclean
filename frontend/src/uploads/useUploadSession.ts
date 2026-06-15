@@ -1,10 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  approveUploadChange,
   fetchUploadSession,
+  previewUploadChange,
+  rejectUploadChange,
+  resetUploadChanges,
+  submitUploadChange,
+  undoUploadChange,
   UploadApiError,
   uploadSpreadsheet
 } from "./api";
-import type { UploadSession, UploadViewState } from "./types";
+import type {
+  ChangePreview,
+  CleaningAction,
+  UploadOperationState,
+  UploadSession,
+  UploadViewState
+} from "./types";
 
 export const SESSION_STORAGE_KEY = "tabulaclean.upload-session-id";
 
@@ -15,6 +27,15 @@ interface UploadSessionState {
   uploadFile: (file: File) => Promise<void>;
   resetSession: () => void;
   downloadUrl: string | null;
+  operationState: UploadOperationState;
+  operationMessage: string | null;
+  previewChange: (action: CleaningAction) => Promise<ChangePreview>;
+  submitChange: (action: CleaningAction) => Promise<UploadSession>;
+  approvePending: () => Promise<UploadSession>;
+  rejectPending: (changeId?: string) => Promise<UploadSession>;
+  undoLatest: () => Promise<UploadSession>;
+  resetToOriginal: () => Promise<UploadSession>;
+  refreshSession: () => Promise<UploadSession | null>;
 }
 
 function savedSessionId(): string | null {
@@ -27,6 +48,21 @@ export function useUploadSession(): UploadSessionState {
   );
   const [session, setSession] = useState<UploadSession | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [operationState, setOperationState] =
+    useState<UploadOperationState>("idle");
+  const [operationMessage, setOperationMessage] = useState<string | null>(null);
+  const operationInFlight = useRef(false);
+
+  const restore = useCallback(async (
+    sessionId: string,
+    signal?: AbortSignal
+  ): Promise<UploadSession> => {
+    const restored = await fetchUploadSession(sessionId, signal);
+    setSession(restored);
+    setMessage(null);
+    setState("success");
+    return restored;
+  }, []);
 
   useEffect(() => {
     const sessionId = savedSessionId();
@@ -73,6 +109,7 @@ export function useUploadSession(): UploadSessionState {
       sessionStorage.setItem(SESSION_STORAGE_KEY, uploaded.session_id);
       setSession(uploaded);
       setState("success");
+      setOperationMessage(null);
     } catch (error) {
       sessionStorage.removeItem(SESSION_STORAGE_KEY);
       setSession(null);
@@ -90,7 +127,159 @@ export function useUploadSession(): UploadSessionState {
     setSession(null);
     setMessage(null);
     setState("initial");
+    setOperationState("idle");
+    setOperationMessage(null);
   }, []);
+
+  const refreshSession = useCallback(async () => {
+    const sessionId = savedSessionId();
+    if (!sessionId) return null;
+    return restore(sessionId);
+  }, [restore]);
+
+  const requireSession = useCallback(() => {
+    if (!session) {
+      throw new UploadApiError(
+        "Open a spreadsheet before starting a fix.",
+        "session_required",
+        409
+      );
+    }
+    return session;
+  }, [session]);
+
+  const runOperation = useCallback(
+    async <T,>(operation: (current: UploadSession) => Promise<T>): Promise<T> => {
+      if (operationInFlight.current) {
+        throw new UploadApiError(
+          "Another spreadsheet action is still in progress.",
+          "operation_in_progress",
+          409
+        );
+      }
+      const current = requireSession();
+      operationInFlight.current = true;
+      setOperationState("working");
+      setOperationMessage(null);
+      try {
+        const result = await operation(current);
+        setOperationState("idle");
+        return result;
+      } catch (error) {
+        const friendly =
+          error instanceof Error
+            ? error.message
+            : "We could not complete that spreadsheet action.";
+        setOperationState("error");
+        setOperationMessage(friendly);
+        if (
+          error instanceof UploadApiError &&
+          error.code === "stale_revision"
+        ) {
+          await refreshSession().catch(() => null);
+        }
+        throw error;
+      } finally {
+        operationInFlight.current = false;
+      }
+    },
+    [refreshSession, requireSession]
+  );
+
+  const previewChange = useCallback(
+    (action: CleaningAction) =>
+      runOperation((current) =>
+        previewUploadChange(
+          current.session_id,
+          current.revision,
+          action
+        )
+      ),
+    [runOperation]
+  );
+
+  const submitChange = useCallback(
+    (action: CleaningAction) =>
+      runOperation(async (current) => {
+        const updated = await submitUploadChange(
+          current.session_id,
+          current.revision,
+          action
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
+  const approvePending = useCallback(
+    () =>
+      runOperation(async (current) => {
+        if (!current.pending_change) {
+          throw new UploadApiError(
+            "There is no pending change to approve.",
+            "change_not_found",
+            404
+          );
+        }
+        const updated = await approveUploadChange(
+          current.session_id,
+          current.pending_change.change_id,
+          current.revision
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
+  const rejectPending = useCallback(
+    (changeId?: string) =>
+      runOperation(async (current) => {
+        const selectedId = changeId ?? current.pending_change?.change_id;
+        if (!selectedId) {
+          throw new UploadApiError(
+            "There is no pending change to reject.",
+            "change_not_found",
+            404
+          );
+        }
+        const updated = await rejectUploadChange(
+          current.session_id,
+          selectedId,
+          current.revision
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
+  const undoLatest = useCallback(
+    () =>
+      runOperation(async (current) => {
+        const updated = await undoUploadChange(
+          current.session_id,
+          current.revision
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
+  const resetToOriginal = useCallback(
+    () =>
+      runOperation(async (current) => {
+        const updated = await resetUploadChanges(
+          current.session_id,
+          current.revision
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
 
   const downloadUrl = useMemo(
     () =>
@@ -106,6 +295,15 @@ export function useUploadSession(): UploadSessionState {
     message,
     uploadFile,
     resetSession,
-    downloadUrl
+    downloadUrl,
+    operationState,
+    operationMessage,
+    previewChange,
+    submitChange,
+    approvePending,
+    rejectPending,
+    undoLatest,
+    resetToOriginal,
+    refreshSession
   };
 }

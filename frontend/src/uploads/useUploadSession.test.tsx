@@ -46,6 +46,11 @@ const session: UploadSession = {
   issue_count: 1,
   validation_status: "not_run",
   audit_log: [],
+  revision: 0,
+  pending_change: null,
+  applied_change_count: 0,
+  can_undo: false,
+  download_warnings: [],
   expires_at: "2026-06-14T12:30:00Z"
 };
 
@@ -217,5 +222,199 @@ describe("useUploadSession", () => {
     expect(result.current.downloadUrl).toBe(
       "/api/sessions/session-123/download"
     );
+  });
+
+  it("previews a change without replacing the current session", async () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    const preview = {
+      base_revision: 0,
+      action_type: "trim_whitespace",
+      summary: "Trim extra spaces",
+      risk: "low",
+      affected_count: 1,
+      affected_unit: "values",
+      unresolved_count: 0,
+      samples: [
+        {
+          row_number: 2,
+          before: { column_1: " Aarav " },
+          after: { column_1: "Aarav" }
+        }
+      ],
+      warnings: []
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(jsonResponse(preview))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    let received;
+    await act(async () => {
+      received = await result.current.previewChange({
+        type: "trim_whitespace",
+        column_ids: ["column_1"]
+      });
+    });
+
+    expect(received).toEqual(preview);
+    expect(result.current.session).toEqual(session);
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/sessions/session-123/change-previews",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: 0,
+          action: {
+            type: "trim_whitespace",
+            column_ids: ["column_1"]
+          }
+        })
+      })
+    );
+  });
+
+  it("submits a change and replaces the session snapshot", async () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    const updated = {
+      ...session,
+      revision: 1,
+      applied_change_count: 1,
+      can_undo: true,
+      audit_log: [
+        {
+          event_id: "event-1",
+          change_id: "change-1",
+          action_type: "trim_whitespace",
+          summary: "Trim extra spaces",
+          risk: "low",
+          status: "applied",
+          affected_count: 1,
+          affected_unit: "values",
+          column_ids: ["column_1"],
+          timestamp: "2026-06-15T12:00:00Z",
+          revision: 1
+        }
+      ]
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(jsonResponse(updated))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    await act(async () => {
+      await result.current.submitChange({
+        type: "trim_whitespace",
+        column_ids: ["column_1"]
+      });
+    });
+
+    expect(result.current.session).toEqual(updated);
+    expect(result.current.operationState).toBe("idle");
+  });
+
+  it("approves, rejects, undoes, and resets through revisioned endpoints", async () => {
+    const pending = {
+      ...session,
+      pending_change: {
+        base_revision: 0,
+        action_type: "rename_column",
+        summary: "Rename a column",
+        risk: "high",
+        affected_count: 1,
+        affected_unit: "column",
+        unresolved_count: 0,
+        samples: [],
+        warnings: [],
+        change_id: "change-1",
+        action: {
+          type: "rename_column",
+          column_id: "column_1",
+          new_name: "Customer"
+        },
+        created_at: "2026-06-15T12:00:00Z"
+      }
+    };
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(pending))
+        .mockResolvedValueOnce(jsonResponse({ ...session, revision: 1 }))
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(jsonResponse({ ...session, revision: 2 }))
+        .mockResolvedValueOnce(jsonResponse({ ...session, revision: 3 }))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    await act(async () => {
+      await result.current.approvePending();
+      await result.current.rejectPending("change-2");
+      await result.current.undoLatest();
+      await result.current.resetToOriginal();
+    });
+
+    expect(fetch).toHaveBeenNthCalledWith(
+      2,
+      "/api/sessions/session-123/changes/change-1/approve",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      3,
+      "/api/sessions/session-123/changes/change-2/reject",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      4,
+      "/api/sessions/session-123/undo",
+      expect.objectContaining({ method: "POST" })
+    );
+    expect(fetch).toHaveBeenNthCalledWith(
+      5,
+      "/api/sessions/session-123/reset",
+      expect.objectContaining({ method: "POST" })
+    );
+  });
+
+  it("refreshes the snapshot after a stale revision error", async () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    const refreshed = { ...session, revision: 2 };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(
+          jsonResponse(
+            {
+              code: "stale_revision",
+              message: "This spreadsheet changed in another view."
+            },
+            409
+          )
+        )
+        .mockResolvedValueOnce(jsonResponse(refreshed))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    await act(async () => {
+      await expect(
+        result.current.submitChange({
+          type: "trim_whitespace",
+          column_ids: ["column_1"]
+        })
+      ).rejects.toThrow("This spreadsheet changed in another view.");
+    });
+
+    expect(result.current.session).toEqual(refreshed);
+    expect(result.current.operationMessage).toContain("changed");
   });
 });

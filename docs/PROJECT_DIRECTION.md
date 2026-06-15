@@ -13,10 +13,10 @@ The intended product workflow is:
 6. download the cleaned file and audit summary
 
 The current repository provides the React product shell, temporary CSV/XLSX
-upload sessions, source-data previews, basic quality checks, unchanged CSV
-download, the cleaning engine, structured actions, review gates, validation
-logic, advanced workbench, and evaluation tasks that later product phases can
-build on.
+upload sessions, source-data previews, basic quality checks, guided manual
+cleaning, risk-based approval, undo/reset, current-table CSV download, the
+cleaning engine, structured actions, advanced workbench, and evaluation tasks
+that later product phases can build on.
 
 ## Evaluation Layer
 
@@ -45,6 +45,11 @@ preview, grouped issue detection, same-tab session restoration, and unchanged
 CSV download. Sessions expire after 30 minutes of inactivity and intentionally
 disappear when the server restarts.
 
-Phase 3 will add the manual cleaning workflow. AI suggestions, approval queues,
-validation of cleaned results, permanent file storage, and failure-case
-storage remain outside Phase 2.
+Phase 3 adds deterministic manual cleaning for detected issues, non-mutating
+change previews, conservative risk-based approval, a single pending review,
+bounded audit history, undo, reset, and download of the current approved table.
+Uploaded-file cleaning remains separate from benchmark tasks and ground-truth
+scoring.
+
+AI-generated suggestions, formal validation of uploaded files, permanent file
+storage, accounts, and failure-case storage remain later product phases.

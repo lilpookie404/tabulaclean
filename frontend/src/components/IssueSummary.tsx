@@ -2,9 +2,15 @@ import type { UploadIssue } from "../uploads/types";
 
 interface IssueSummaryProps {
   issues: UploadIssue[];
+  disabled?: boolean;
+  onReviewFix?: (issue: UploadIssue) => void;
 }
 
-export default function IssueSummary({ issues }: IssueSummaryProps) {
+export default function IssueSummary({
+  issues,
+  disabled = false,
+  onReviewFix
+}: IssueSummaryProps) {
   if (issues.length === 0) {
     return (
       <div className="issues-empty">
@@ -29,6 +35,16 @@ export default function IssueSummary({ issues }: IssueSummaryProps) {
             <strong>{issue.title}</strong>
             <p>{issue.message}</p>
             <span>{issue.affected_count.toLocaleString()} {issue.affected_unit}</span>
+            {onReviewFix ? (
+              <button
+                className="issue-fix-button"
+                disabled={disabled}
+                onClick={() => onReviewFix(issue)}
+                type="button"
+              >
+                Review fix
+              </button>
+            ) : null}
           </article>
         ))}
       </div>

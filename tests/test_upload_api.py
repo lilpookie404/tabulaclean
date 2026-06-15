@@ -83,6 +83,11 @@ def test_csv_upload_creates_session_with_preview_and_issues(client: TestClient) 
     assert payload["issue_count"] == 2
     assert payload["validation_status"] == "not_run"
     assert payload["audit_log"] == []
+    assert payload["revision"] == 0
+    assert payload["pending_change"] is None
+    assert payload["applied_change_count"] == 0
+    assert payload["can_undo"] is False
+    assert payload["download_warnings"] == []
     assert payload["expires_at"]
 
 
@@ -218,6 +223,227 @@ def test_upload_capacity_error_does_not_remove_existing_session(
     assert response.status_code == 503
     assert response.json()["code"] == "session_capacity"
     assert client.get(f"/api/sessions/{first['session_id']}").status_code == 200
+
+
+def test_change_preview_does_not_mutate_session(client: TestClient) -> None:
+    uploaded = client.post(
+        "/api/uploads",
+        files={"file": ("contacts.csv", b"name\n Aarav \n", "text/csv")},
+    ).json()
+
+    response = client.post(
+        f"/api/sessions/{uploaded['session_id']}/change-previews",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "trim_whitespace",
+                "column_ids": ["column_1"],
+            },
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["risk"] == "low"
+    assert response.json()["affected_count"] == 1
+    restored = client.get(f"/api/sessions/{uploaded['session_id']}").json()
+    assert restored["revision"] == 0
+    assert restored["preview_rows"][0]["values"]["column_1"] == " Aarav "
+
+
+def test_safe_change_applies_and_can_be_undone(client: TestClient) -> None:
+    uploaded = client.post(
+        "/api/uploads",
+        files={"file": ("contacts.csv", b"name\n Aarav \n", "text/csv")},
+    ).json()
+
+    applied = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "trim_whitespace",
+                "column_ids": ["column_1"],
+            },
+        },
+    )
+
+    assert applied.status_code == 200
+    assert applied.json()["revision"] == 1
+    assert applied.json()["preview_rows"][0]["values"]["column_1"] == "Aarav"
+    assert applied.json()["can_undo"] is True
+    assert applied.json()["audit_log"][-1]["status"] == "applied"
+
+    undone = client.post(
+        f"/api/sessions/{uploaded['session_id']}/undo",
+        json={"expected_revision": 1},
+    )
+    assert undone.status_code == 200
+    assert undone.json()["revision"] == 2
+    assert undone.json()["preview_rows"][0]["values"]["column_1"] == " Aarav "
+
+
+def test_risky_change_requires_approval_and_reset_restores_original(
+    client: TestClient,
+) -> None:
+    uploaded = client.post(
+        "/api/uploads",
+        files={"file": ("contacts.csv", b"name\nAarav\n", "text/csv")},
+    ).json()
+
+    queued = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "rename_column",
+                "column_id": "column_1",
+                "new_name": "Customer Name",
+            },
+        },
+    )
+
+    assert queued.status_code == 200
+    assert queued.json()["revision"] == 0
+    assert queued.json()["columns"][0]["name"] == "name"
+    pending = queued.json()["pending_change"]
+    assert pending["summary"] == "Rename a column"
+    assert pending["risk"] == "high"
+
+    approved = client.post(
+        (
+            f"/api/sessions/{uploaded['session_id']}/changes/"
+            f"{pending['change_id']}/approve"
+        ),
+        json={"expected_revision": 0},
+    )
+    assert approved.status_code == 200
+    assert approved.json()["columns"][0]["name"] == "Customer Name"
+    assert approved.json()["audit_log"][-1]["status"] == "approved"
+
+    reset = client.post(
+        f"/api/sessions/{uploaded['session_id']}/reset",
+        json={"expected_revision": 1},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["columns"][0]["name"] == "name"
+    assert reset.json()["revision"] == 2
+
+
+def test_reject_and_change_errors_are_stable(client: TestClient) -> None:
+    uploaded = client.post(
+        "/api/uploads",
+        files={"file": ("contacts.csv", b"name\nAarav\n", "text/csv")},
+    ).json()
+    queued = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "rename_column",
+                "column_id": "column_1",
+                "new_name": "Customer Name",
+            },
+        },
+    ).json()
+    pending = queued["pending_change"]
+
+    blocked = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "trim_whitespace",
+                "column_ids": ["column_1"],
+            },
+        },
+    )
+    assert blocked.status_code == 409
+    assert blocked.json()["code"] == "change_pending"
+
+    rejected = client.post(
+        (
+            f"/api/sessions/{uploaded['session_id']}/changes/"
+            f"{pending['change_id']}/reject"
+        ),
+        json={"expected_revision": 0},
+    )
+    assert rejected.status_code == 200
+    assert rejected.json()["pending_change"] is None
+    assert rejected.json()["revision"] == 0
+
+    stale = client.post(
+        f"/api/sessions/{uploaded['session_id']}/change-previews",
+        json={
+            "expected_revision": 99,
+            "action": {
+                "type": "rename_column",
+                "column_id": "column_1",
+                "new_name": "Name",
+            },
+        },
+    )
+    assert stale.status_code == 409
+    assert stale.json()["code"] == "stale_revision"
+
+    invalid = client.post(
+        f"/api/sessions/{uploaded['session_id']}/change-previews",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "rename_column",
+                "column_id": "column_1",
+                "new_name": "",
+            },
+        },
+    )
+    assert invalid.status_code == 422
+    assert invalid.json()["code"] == "invalid_action"
+
+    malformed = client.post(
+        f"/api/sessions/{uploaded['session_id']}/change-previews",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "fill_missing",
+                "column_id": "column_1",
+            },
+        },
+    )
+    assert malformed.status_code == 422
+    assert malformed.json() == {
+        "code": "invalid_request",
+        "message": "Choose a supported cleaning action and complete its required fields.",
+    }
+
+
+def test_formula_like_download_warning_does_not_change_exported_values(
+    client: TestClient,
+) -> None:
+    uploaded = client.post(
+        "/api/uploads",
+        files={
+            "file": (
+                "formulas.csv",
+                b"name,note\nAarav,=1+1\nMeera,@SUM(A1:A2)\n",
+                "text/csv",
+            )
+        },
+    ).json()
+
+    assert uploaded["download_warnings"] == [
+        {
+            "code": "formula_like_values",
+            "title": "Some text may open as a spreadsheet formula",
+            "message": (
+                "2 values begin with characters that spreadsheet software may "
+                "interpret as formulas. TabulaClean has not changed them."
+            ),
+            "affected_count": 2,
+        }
+    ]
+    downloaded = client.get(f"/api/sessions/{uploaded['session_id']}/download")
+    assert "=1+1" in downloaded.text
+    assert "@SUM(A1:A2)" in downloaded.text
 
 
 def test_existing_backend_and_evaluation_routes_still_work(client: TestClient) -> None:

@@ -10,8 +10,10 @@ from threading import Thread
 from typing import Any, Dict
 
 import inference
-from fastapi import Query
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Query, Request
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from tabular_cleaning_env.models import TabularCleaningAction, TabularCleaningObservation
@@ -40,6 +42,29 @@ app = create_app(
 )
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 app.add_exception_handler(UploadError, upload_error_handler)
+
+
+async def upload_request_validation_handler(
+    request: Request,
+    exc: RequestValidationError,
+) -> JSONResponse:
+    if request.method == "POST" and request.url.path.startswith("/api/sessions/"):
+        return JSONResponse(
+            status_code=422,
+            content={
+                "code": "invalid_request",
+                "message": (
+                    "Choose a supported cleaning action and complete its required fields."
+                ),
+            },
+        )
+    return await request_validation_exception_handler(request, exc)
+
+
+app.add_exception_handler(
+    RequestValidationError,
+    upload_request_validation_handler,
+)
 app.include_router(upload_router)
 
 

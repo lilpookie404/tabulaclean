@@ -18,8 +18,9 @@ the cleaned data, and download a trustworthy result.
 
 This repository now provides the React product shell, temporary CSV/XLSX
 upload sessions, table previews, basic quality checks, CSV download, the
-cleaning engine, and the advanced evaluation suite. Manual cleaning and
-AI-assisted suggestions remain later product phases.
+guided manual cleaning workflow, risk-based review, undo/reset history, the
+cleaning engine, and the advanced evaluation suite. AI-assisted suggestions
+and formal validation for uploaded files remain later product phases.
 
 ## Project Direction
 
@@ -65,8 +66,10 @@ The cleaning workflow is:
 6. export a cleaned result with an audit trail
 
 The current product workspace implements upload, preview, basic issue
-detection, and unchanged CSV download. The advanced workbench continues to
-exercise the governed cleaning workflow with bundled evaluation tasks.
+detection, guided deterministic fixes, approval of risky changes, undo/reset,
+and CSV download of the current approved table. The advanced workbench
+continues to exercise the governed cleaning workflow with bundled evaluation
+tasks.
 
 ## Upload Sessions
 
@@ -74,7 +77,15 @@ The product API supports temporary, process-local spreadsheet sessions:
 
 - `POST /api/uploads` accepts one `.csv` or `.xlsx` file.
 - `GET /api/sessions/{session_id}` restores the current session snapshot.
-- `GET /api/sessions/{session_id}/download` downloads the unchanged current
+- `POST /api/sessions/{session_id}/change-previews` previews a typed cleaning
+  action without changing the table.
+- `POST /api/sessions/{session_id}/changes` applies a low-risk action or queues
+  a risky action for review.
+- `POST /api/sessions/{session_id}/changes/{change_id}/approve` and `/reject`
+  resolve the single pending risky change.
+- `POST /api/sessions/{session_id}/undo` removes the latest approved action.
+- `POST /api/sessions/{session_id}/reset` restores the uploaded table.
+- `GET /api/sessions/{session_id}/download` downloads the current approved
   table as UTF-8 BOM CSV.
 
 Uploads are limited to 10 MB, 100,000 rows, and 200 columns. Sessions expire
@@ -84,8 +95,27 @@ contents are not persisted to disk.
 
 Phase 2 detects grouped findings for missing values, duplicate rows, padded
 values, problematic column names, numeric-looking text, empty columns, and
-inconsistent date formats. These checks describe the source data and do not
-modify it.
+inconsistent date formats.
+
+Phase 3 connects those findings to deterministic manual fixes:
+
+- trim leading and trailing whitespace
+- rename problematic column headers
+- fill missing values with an explicit value, mean, median, or most-common value
+- remove exact duplicate rows
+- convert numeric-looking text to integer or decimal values
+- remove completely empty columns
+- standardize dates with an explicit date order and output format
+
+Every action is previewed. Whitespace trimming can apply immediately; all other
+actions wait in Review Changes for explicit approval. Only one risky change can
+wait at a time. Sessions keep up to 100 active actions and the latest 200 audit
+events. Downloads include approved changes only and remain intentionally
+unvalidated in this phase.
+
+TabulaClean warns when text beginning with `=`, `+`, `-`, or `@` could be
+interpreted as a formula by spreadsheet software. It does not silently rewrite
+those values.
 
 ## Design Goals
 
@@ -376,13 +406,12 @@ uvicorn server.app:app --host 0.0.0.0 --port 8000
 Open `http://localhost:8000`. FastAPI serves the compiled React application and
 keeps `/play` available as the advanced evaluation workspace.
 
-## Phase 2 Boundary
+## Phase 3 Boundary
 
-Phase 2 provides temporary CSV/XLSX upload sessions, source-data previews,
-basic grouped issue detection, same-tab session restoration, and unchanged CSV
-download. It does not add manual cleaning actions, AI suggestions, approval
-queues, validation workflows, failure-case storage, or permanent spreadsheet
-storage.
+Phase 3 adds guided deterministic cleaning, change previews, approval for risky
+changes, activity history, undo, reset, and download of the current approved
+table. It does not add AI suggestions, formal validation, failure-case storage,
+accounts, or permanent spreadsheet storage.
 
 ### Run inference
 
