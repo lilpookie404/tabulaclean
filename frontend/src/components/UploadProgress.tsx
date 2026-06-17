@@ -9,7 +9,8 @@ const steps = [
   { number: 1, title: "Upload", initial: "Choose a spreadsheet", success: "Spreadsheet received" },
   { number: 2, title: "Preview", initial: "Review data and issues", success: "Review data and issues" },
   { number: 3, title: "Review fixes", initial: "Approve risky changes", success: "Approve risky changes" },
-  { number: 4, title: "Download", initial: "Keep the current table", success: "Current CSV is ready" }
+  { number: 4, title: "Validate", initial: "Run readiness checks", success: "Check required fields" },
+  { number: 5, title: "Download", initial: "Keep the current table", success: "Current CSV is ready" }
 ];
 
 export default function UploadProgress({
@@ -33,6 +34,8 @@ export default function UploadProgress({
                   : hasSession && step.number === 2
                 ? "current"
                 : hasSession && step.number === 4
+                  ? "ready"
+                : hasSession && step.number === 5
                   ? "ready"
                   : !hasSession && step.number === 1
                     ? "current"

@@ -26,7 +26,9 @@ from .schemas import (
     ColumnDescriptor,
     DetectedIssue,
     PendingChange,
+    ValidationResult,
 )
+from .validation import formula_download_warnings, validate_upload_table
 
 
 Clock = Callable[[], datetime]
@@ -55,6 +57,7 @@ class UploadSession:
     last_accessed_at: datetime
     expires_at: datetime
     validation_status: str = "not_run"
+    validation_result: ValidationResult | None = None
     revision: int = 0
     active_actions: list[AppliedAction] = field(default_factory=list)
     pending_change: PendingChange | None = None
@@ -221,6 +224,10 @@ class SessionStore:
                 "This temporary session has reached its cleaning-action limit. Download the current file or reset to the original.",
             )
 
+    def _clear_validation(self, session: UploadSession) -> None:
+        session.validation_status = "not_run"
+        session.validation_result = None
+
     def _profile(
         self,
         session: UploadSession,
@@ -353,6 +360,7 @@ class SessionStore:
         session.issues = list(profile.issues)
         session.memory_bytes = memory_bytes
         session.revision += 1
+        self._clear_validation(session)
         session.active_actions.append(
             AppliedAction(
                 change_id=change_id,
@@ -416,6 +424,7 @@ class SessionStore:
                     status="applied",
                 )
                 return session
+            self._clear_validation(session)
             session.pending_change = PendingChange(
                 **preview.model_dump(),
                 change_id=change_id,
@@ -477,6 +486,7 @@ class SessionStore:
                 status="approved",
             )
             session.pending_change = None
+            self._clear_validation(session)
             return session
 
     def reject_change(
@@ -502,6 +512,7 @@ class SessionStore:
                 affected_unit=pending.affected_unit,
             )
             session.pending_change = None
+            self._clear_validation(session)
             return session
 
     def _replay(
@@ -549,6 +560,7 @@ class SessionStore:
             session.memory_bytes = memory_bytes
             session.active_actions = list(remaining)
             session.revision += 1
+            self._clear_validation(session)
             self._audit(
                 session,
                 now=now,
@@ -593,6 +605,7 @@ class SessionStore:
             session.pending_change = None
             if table_changed:
                 session.revision += 1
+            self._clear_validation(session)
             self._audit(
                 session,
                 now=now,
@@ -600,6 +613,41 @@ class SessionStore:
                 affected_count=1 if table_changed else 0,
                 affected_unit="session",
             )
+            return session
+
+    def validate(
+        self,
+        session_id: str,
+        *,
+        expected_revision: int,
+        required_column_ids: list[str],
+    ) -> UploadSession:
+        with self._lock:
+            now = self._clock()
+            session = self._get_locked(session_id, now)
+            self._check_revision(session, expected_revision)
+            unknown = [
+                column_id
+                for column_id in required_column_ids
+                if column_id not in session.column_ids
+            ]
+            if unknown:
+                raise UploadError(
+                    422,
+                    "unknown_column",
+                    "Choose required columns that still exist in this spreadsheet.",
+                )
+            result = validate_upload_table(
+                dataframe=session.current_dataframe,
+                required_column_ids=list(dict.fromkeys(required_column_ids)),
+                has_pending_change=session.pending_change is not None,
+                issues=session.issues,
+                download_warnings=formula_download_warnings(session.current_dataframe),
+                revision=session.revision,
+                ran_at=now,
+            )
+            session.validation_status = result.status
+            session.validation_result = result
             return session
 
     def clear(self) -> None:

@@ -19,8 +19,9 @@ the cleaned data, and download a trustworthy result.
 This repository now provides the React product shell, temporary CSV/XLSX
 upload sessions, table previews, basic quality checks, CSV download, the
 guided manual cleaning workflow, risk-based review, undo/reset history, the
-cleaning engine, and the advanced evaluation suite. AI-assisted suggestions
-and formal validation for uploaded files remain later product phases.
+cleaning engine, uploaded-file validation, validation ZIP exports, and the
+advanced evaluation suite. AI-assisted suggestions remain a later product
+phase.
 
 ## Project Direction
 
@@ -85,8 +86,12 @@ The product API supports temporary, process-local spreadsheet sessions:
   resolve the single pending risky change.
 - `POST /api/sessions/{session_id}/undo` removes the latest approved action.
 - `POST /api/sessions/{session_id}/reset` restores the uploaded table.
+- `POST /api/sessions/{session_id}/validations` runs revisioned validation
+  with optional required columns.
 - `GET /api/sessions/{session_id}/download` downloads the current approved
   table as UTF-8 BOM CSV.
+- `GET /api/sessions/{session_id}/validated-export` downloads a validation ZIP
+  after validation has run for the current table.
 
 Uploads are limited to 10 MB, 100,000 rows, and 200 columns. Sessions expire
 after 30 minutes of inactivity and are removed when the application restarts.
@@ -111,7 +116,14 @@ Every action is previewed. Whitespace trimming can apply immediately; all other
 actions wait in Review Changes for explicit approval. Only one risky change can
 wait at a time. Sessions keep up to 100 active actions and the latest 200 audit
 events. Downloads include approved changes only and remain intentionally
-unvalidated in this phase.
+unvalidated until Phase 4 validation runs.
+
+Phase 4 adds formal uploaded-file validation without using benchmark ground
+truth. Users can mark required columns, run validation in the workspace, and
+see pass/fail checks plus warnings. Validation fails only when a risky change
+is still pending or required cells are blank. Normal CSV download remains
+available with clear status copy; after any validation run, the validation ZIP
+contains `cleaned.csv`, `validation-report.json`, and `audit-log.json`.
 
 TabulaClean warns when text beginning with `=`, `+`, `-`, or `@` could be
 interpreted as a formula by spreadsheet software. It does not silently rewrite
@@ -406,12 +418,16 @@ uvicorn server.app:app --host 0.0.0.0 --port 8000
 Open `http://localhost:8000`. FastAPI serves the compiled React application and
 keeps `/play` available as the advanced evaluation workspace.
 
-## Phase 3 Boundary
+## Phase 4 Boundary
 
 Phase 3 adds guided deterministic cleaning, change previews, approval for risky
 changes, activity history, undo, reset, and download of the current approved
-table. It does not add AI suggestions, formal validation, failure-case storage,
-accounts, or permanent spreadsheet storage.
+table.
+
+Phase 4 adds uploaded-file validation, required-column checks, validation
+warnings, and a validation ZIP for the current temporary session. It does not
+add AI suggestions, failure-case storage, accounts, or permanent spreadsheet
+storage.
 
 ### Run inference
 
