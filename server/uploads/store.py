@@ -512,6 +512,7 @@ class SessionStore:
                 affected_unit=pending.affected_unit,
             )
             session.pending_change = None
+            self._clear_validation(session)
             return session
 
     def _replay(

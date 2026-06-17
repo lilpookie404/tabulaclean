@@ -180,6 +180,43 @@ def test_validation_result_is_invalidated_after_table_change(
     assert changed.json()["validation_result"] is None
 
 
+def test_validation_result_is_invalidated_after_rejecting_pending_change(
+    client: TestClient,
+) -> None:
+    uploaded = _upload(client)
+    pending = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes",
+        json={
+            "expected_revision": 0,
+            "action": {
+                "type": "rename_column",
+                "column_id": "column_1",
+                "new_name": "Customer Name",
+            },
+        },
+    )
+    assert pending.status_code == 200
+    change_id = pending.json()["pending_change"]["change_id"]
+
+    validated = _run_validation(
+        client,
+        uploaded["session_id"],
+        required_column_ids=["column_1"],
+    )
+    assert validated.status_code == 200
+    assert validated.json()["validation_status"] == "failed"
+
+    rejected = client.post(
+        f"/api/sessions/{uploaded['session_id']}/changes/{change_id}/reject",
+        json={"expected_revision": 0},
+    )
+
+    assert rejected.status_code == 200
+    assert rejected.json()["pending_change"] is None
+    assert rejected.json()["validation_status"] == "not_run"
+    assert rejected.json()["validation_result"] is None
+
+
 def test_validated_export_requires_current_validation_and_contains_reports(
     client: TestClient,
 ) -> None:
