@@ -140,6 +140,26 @@ class DownloadWarning(BaseModel):
     affected_count: int
 
 
+class ValidationCheck(BaseModel):
+    check_id: str
+    title: str
+    status: Literal["passed", "failed", "warning"]
+    severity: Literal["error", "warning", "info"]
+    message: str
+    affected_count: int = 0
+    affected_columns: list[str] = Field(default_factory=list)
+    example_rows: list[int] = Field(default_factory=list)
+
+
+class ValidationResult(BaseModel):
+    status: Literal["passed", "failed"]
+    revision: int
+    required_column_ids: list[str] = Field(default_factory=list)
+    ran_at: datetime
+    checks: list[ValidationCheck]
+    summary: dict[str, int]
+
+
 class ChangeRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     action: CleaningAction
@@ -147,6 +167,11 @@ class ChangeRequest(BaseModel):
 
 class RevisionRequest(BaseModel):
     expected_revision: int = Field(ge=0)
+
+
+class ValidationRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    required_column_ids: list[str] = Field(default_factory=list)
 
 
 class SessionSnapshot(BaseModel):
@@ -160,6 +185,7 @@ class SessionSnapshot(BaseModel):
     issues: list[DetectedIssue]
     issue_count: int
     validation_status: str = "not_run"
+    validation_result: ValidationResult | None = None
     audit_log: list[AuditEntry] = Field(default_factory=list)
     revision: int = 0
     pending_change: PendingChange | None = None

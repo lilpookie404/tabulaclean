@@ -5,6 +5,7 @@ import {
   previewUploadChange,
   rejectUploadChange,
   resetUploadChanges,
+  runUploadValidation,
   submitUploadChange,
   undoUploadChange,
   UploadApiError,
@@ -36,6 +37,8 @@ interface UploadSessionState {
   undoLatest: () => Promise<UploadSession>;
   resetToOriginal: () => Promise<UploadSession>;
   refreshSession: () => Promise<UploadSession | null>;
+  runValidation: (requiredColumnIds: string[]) => Promise<UploadSession>;
+  validatedExportUrl: string | null;
 }
 
 function savedSessionId(): string | null {
@@ -281,10 +284,32 @@ export function useUploadSession(): UploadSessionState {
     [runOperation]
   );
 
+  const runValidation = useCallback(
+    (requiredColumnIds: string[]) =>
+      runOperation(async (current) => {
+        const updated = await runUploadValidation(
+          current.session_id,
+          current.revision,
+          requiredColumnIds
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
   const downloadUrl = useMemo(
     () =>
       session
         ? `/api/sessions/${encodeURIComponent(session.session_id)}/download`
+        : null,
+    [session]
+  );
+
+  const validatedExportUrl = useMemo(
+    () =>
+      session?.validation_result
+        ? `/api/sessions/${encodeURIComponent(session.session_id)}/validated-export`
         : null,
     [session]
   );
@@ -304,6 +329,8 @@ export function useUploadSession(): UploadSessionState {
     rejectPending,
     undoLatest,
     resetToOriginal,
-    refreshSession
+    refreshSession,
+    runValidation,
+    validatedExportUrl
   };
 }

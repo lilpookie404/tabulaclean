@@ -136,3 +136,17 @@ export function resetUploadChanges(
     mutationBody(expectedRevision)
   );
 }
+
+export function runUploadValidation(
+  sessionId: string,
+  expectedRevision: number,
+  requiredColumnIds: string[]
+): Promise<UploadSession> {
+  return postJson<UploadSession>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/validations`,
+    JSON.stringify({
+      expected_revision: expectedRevision,
+      required_column_ids: requiredColumnIds
+    })
+  );
+}

@@ -111,6 +111,30 @@ export interface DownloadWarning {
   affected_count: number;
 }
 
+export interface ValidationCheck {
+  check_id: string;
+  title: string;
+  status: "passed" | "failed" | "warning";
+  severity: "error" | "warning" | "info";
+  message: string;
+  affected_count: number;
+  affected_columns: string[];
+  example_rows: number[];
+}
+
+export interface ValidationResult {
+  status: "passed" | "failed";
+  revision: number;
+  required_column_ids: string[];
+  ran_at: string;
+  checks: ValidationCheck[];
+  summary: {
+    errors: number;
+    warnings: number;
+    passed: number;
+  };
+}
+
 export interface UploadSession {
   session_id: string;
   filename: string;
@@ -122,6 +146,7 @@ export interface UploadSession {
   issues: UploadIssue[];
   issue_count: number;
   validation_status: string;
+  validation_result?: ValidationResult | null;
   audit_log: AuditEntry[];
   revision: number;
   pending_change: PendingChange | null;

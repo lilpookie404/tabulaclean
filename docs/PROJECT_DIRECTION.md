@@ -14,9 +14,10 @@ The intended product workflow is:
 
 The current repository provides the React product shell, temporary CSV/XLSX
 upload sessions, source-data previews, basic quality checks, guided manual
-cleaning, risk-based approval, undo/reset, current-table CSV download, the
-cleaning engine, structured actions, advanced workbench, and evaluation tasks
-that later product phases can build on.
+cleaning, risk-based approval, undo/reset, current-table CSV download,
+uploaded-file validation, validation ZIP export, the cleaning engine,
+structured actions, advanced workbench, and evaluation tasks that later
+product phases can build on.
 
 ## Evaluation Layer
 
@@ -51,5 +52,10 @@ bounded audit history, undo, reset, and download of the current approved table.
 Uploaded-file cleaning remains separate from benchmark tasks and ground-truth
 scoring.
 
-AI-generated suggestions, formal validation of uploaded files, permanent file
-storage, accounts, and failure-case storage remain later product phases.
+Phase 4 adds uploaded-file validation for temporary sessions. Users can mark
+required columns, run revisioned validation, review hard failures and warnings,
+and download a validation ZIP containing the cleaned CSV, validation report,
+and audit log.
+
+AI-generated suggestions, permanent file storage, accounts, and failure-case
+storage remain later product phases.

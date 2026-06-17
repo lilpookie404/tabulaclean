@@ -222,6 +222,61 @@ describe("useUploadSession", () => {
     expect(result.current.downloadUrl).toBe(
       "/api/sessions/session-123/download"
     );
+    expect(result.current.validatedExportUrl).toBeNull();
+  });
+
+  it("runs validation and exposes the validated export URL", async () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    const validated = {
+      ...session,
+      validation_status: "failed",
+      validation_result: {
+        status: "failed",
+        revision: 0,
+        required_column_ids: ["column_2"],
+        ran_at: "2026-06-15T12:00:00Z",
+        summary: { errors: 1, warnings: 1, passed: 2 },
+        checks: [
+          {
+            check_id: "required_columns",
+            title: "Required columns",
+            status: "failed",
+            severity: "error",
+            message: "1 required cells are still blank.",
+            affected_count: 1,
+            affected_columns: ["column_2"],
+            example_rows: [3]
+          }
+        ]
+      }
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(jsonResponse(validated))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    await act(async () => {
+      await result.current.runValidation(["column_2"]);
+    });
+
+    expect(result.current.session).toEqual(validated);
+    expect(result.current.validatedExportUrl).toBe(
+      "/api/sessions/session-123/validated-export"
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/sessions/session-123/validations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: 0,
+          required_column_ids: ["column_2"]
+        })
+      })
+    );
   });
 
   it("previews a change without replacing the current session", async () => {

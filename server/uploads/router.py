@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import csv
+import json
 from datetime import date, datetime
 from io import BytesIO, StringIO
 from pathlib import Path
 import re
 from typing import Any, Callable
 from urllib.parse import quote
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from fastapi import APIRouter, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -24,8 +26,10 @@ from .schemas import (
     PreviewRow,
     RevisionRequest,
     SessionSnapshot,
+    ValidationRequest,
 )
 from .store import SessionStore, UploadSession
+from .validation import formula_download_warnings
 
 
 PREVIEW_ROW_LIMIT = 20
@@ -71,6 +75,7 @@ def _snapshot(session: UploadSession) -> SessionSnapshot:
         issues=session.issues,
         issue_count=len(session.issues),
         validation_status=session.validation_status,
+        validation_result=session.validation_result,
         audit_log=session.audit_log,
         revision=session.revision,
         pending_change=session.pending_change,
@@ -93,25 +98,7 @@ def _mutated_snapshot(
 
 
 def _download_warnings(session: UploadSession) -> list[DownloadWarning]:
-    formula_like_count = sum(
-        1
-        for row in session.current_dataframe.itertuples(index=False, name=None)
-        for value in row
-        if isinstance(value, str) and value.startswith(("=", "+", "-", "@"))
-    )
-    if not formula_like_count:
-        return []
-    return [
-        DownloadWarning(
-            code="formula_like_values",
-            title="Some text may open as a spreadsheet formula",
-            message=(
-                f"{formula_like_count} values begin with characters that spreadsheet "
-                "software may interpret as formulas. TabulaClean has not changed them."
-            ),
-            affected_count=formula_like_count,
-        )
-    ]
+    return formula_download_warnings(session.current_dataframe)
 
 
 async def upload_error_handler(_: Request, exc: UploadError) -> JSONResponse:
@@ -238,6 +225,21 @@ def reset_upload_changes(
     )
 
 
+@router.post("/sessions/{session_id}/validations", response_model=SessionSnapshot)
+def validate_upload_session(
+    session_id: str,
+    request: ValidationRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.validate(
+            session_id,
+            expected_revision=request.expected_revision,
+            required_column_ids=request.required_column_ids,
+        ),
+    )
+
+
 def _download_filename(filename: str) -> str:
     stem = Path(filename).stem
     safe_stem = re.sub(r"[^A-Za-z0-9._-]+", "-", stem).strip("-._")
@@ -249,16 +251,20 @@ def _csv_value(value: Any) -> Any:
     return "" if json_value is None else json_value
 
 
+def _csv_bytes(session: UploadSession) -> bytes:
+    text_buffer = StringIO(newline="")
+    writer = csv.writer(text_buffer, lineterminator="\n")
+    writer.writerow(session.display_headers)
+    for row in session.current_dataframe.itertuples(index=False, name=None):
+        writer.writerow([_csv_value(value) for value in row])
+    return text_buffer.getvalue().encode("utf-8-sig")
+
+
 @router.get("/sessions/{session_id}/download")
 def download_upload_session(session_id: str) -> StreamingResponse:
     def build_download(session: UploadSession) -> tuple[bytes, str]:
-        text_buffer = StringIO(newline="")
-        writer = csv.writer(text_buffer, lineterminator="\n")
-        writer.writerow(session.display_headers)
-        for row in session.current_dataframe.itertuples(index=False, name=None):
-            writer.writerow([_csv_value(value) for value in row])
         return (
-            text_buffer.getvalue().encode("utf-8-sig"),
+            _csv_bytes(session),
             _download_filename(session.filename),
         )
 
@@ -272,5 +278,51 @@ def download_upload_session(session_id: str) -> StreamingResponse:
     return StreamingResponse(
         BytesIO(payload),
         media_type="text/csv; charset=utf-8",
+        headers=headers,
+    )
+
+
+def _zip_filename(filename: str) -> str:
+    stem = Path(_download_filename(filename)).stem.removesuffix("-current")
+    return f"{stem or 'spreadsheet'}-validated.zip"
+
+
+@router.get("/sessions/{session_id}/validated-export")
+def download_validated_export(session_id: str) -> StreamingResponse:
+    def build_export(session: UploadSession) -> tuple[bytes, str]:
+        result = session.validation_result
+        if result is None or result.revision != session.revision:
+            raise UploadError(
+                409,
+                "validation_not_run",
+                "Run validation for the current table before downloading the validated export.",
+            )
+
+        buffer = BytesIO()
+        with ZipFile(buffer, "w", compression=ZIP_DEFLATED) as archive:
+            archive.writestr("cleaned.csv", _csv_bytes(session))
+            archive.writestr(
+                "validation-report.json",
+                json.dumps(result.model_dump(mode="json"), indent=2).encode("utf-8"),
+            )
+            archive.writestr(
+                "audit-log.json",
+                json.dumps(
+                    [entry.model_dump(mode="json") for entry in session.audit_log],
+                    indent=2,
+                ).encode("utf-8"),
+            )
+        return buffer.getvalue(), _zip_filename(session.filename)
+
+    payload, filename = session_store.read(session_id, build_export)
+    headers = {
+        "Content-Disposition": (
+            f"attachment; filename=\"{filename}\"; "
+            f"filename*=UTF-8''{quote(filename)}"
+        )
+    }
+    return StreamingResponse(
+        BytesIO(payload),
+        media_type="application/zip",
         headers=headers,
     )

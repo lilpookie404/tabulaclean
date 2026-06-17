@@ -118,7 +118,8 @@ describe("CleanMyFilePage", () => {
     expect(within(progress).getByText("1 · Upload")).toBeInTheDocument();
     expect(within(progress).getByText("2 · Preview")).toBeInTheDocument();
     expect(within(progress).getByText("3 · Review fixes")).toBeInTheDocument();
-    expect(within(progress).getByText("4 · Download")).toBeInTheDocument();
+    expect(within(progress).getByText("4 · Validate")).toBeInTheDocument();
+    expect(within(progress).getByText("5 · Download")).toBeInTheDocument();
   });
 
   it("announces upload progress while parsing", async () => {
@@ -184,6 +185,10 @@ describe("CleanMyFilePage", () => {
       screen.getByRole("heading", { name: "Download current table" })
     ).toBeInTheDocument();
     expect(
+      screen.getByRole("heading", { name: "Validate current table" })
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Email is required")).toBeChecked();
+    expect(
       screen.getByText("Nothing has been changed yet.")
     ).toBeInTheDocument();
     expect(
@@ -192,6 +197,64 @@ describe("CleanMyFilePage", () => {
     expect(
       screen.getByRole("button", { name: "Upload another file" })
     ).toBeInTheDocument();
+  });
+
+  it("runs validation from the workspace and offers a validated ZIP", async () => {
+    const validated = {
+      ...session,
+      validation_status: "failed",
+      validation_result: {
+        status: "failed",
+        revision: 0,
+        required_column_ids: ["column_2"],
+        ran_at: "2026-06-15T12:00:00Z",
+        summary: { errors: 1, warnings: 1, passed: 2 },
+        checks: [
+          {
+            check_id: "required_columns",
+            title: "Required columns",
+            status: "failed",
+            severity: "error",
+            message: "1 required cells are still blank.",
+            affected_count: 1,
+            affected_columns: ["column_2"],
+            example_rows: [3]
+          },
+          {
+            check_id: "remaining_issues",
+            title: "Remaining quality warnings",
+            status: "warning",
+            severity: "warning",
+            message: "2 quality issue groups still deserve review.",
+            affected_count: 2,
+            affected_columns: ["column_1", "column_2"],
+            example_rows: [3]
+          }
+        ]
+      }
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session, 201))
+        .mockResolvedValueOnce(jsonResponse(validated))
+    );
+    render(<CleanMyFilePage />);
+    fireEvent.change(screen.getByLabelText("Choose a CSV or XLSX file"), {
+      target: { files: [new File(["xlsx"], "customer-contacts.xlsx")] }
+    });
+    await screen.findByText("Here’s what we found.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Run validation" }));
+
+    expect(await screen.findByText("Validation failed")).toBeInTheDocument();
+    expect(screen.getByText("1 required cells are still blank.")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Download validation ZIP" })
+    ).toHaveAttribute(
+      "href",
+      "/api/sessions/session-123/validated-export"
+    );
   });
 
   it("opens a guided fix panel and applies a safe whitespace fix", async () => {

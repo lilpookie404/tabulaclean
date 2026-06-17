@@ -5,6 +5,7 @@ import FixSidePanel from "./FixSidePanel";
 import IssueSummary from "./IssueSummary";
 import TablePreview from "./TablePreview";
 import UploadProgress from "./UploadProgress";
+import ValidationCard from "./ValidationCard";
 
 interface UploadPickerProps {
   busy?: boolean;
@@ -82,6 +83,9 @@ export default function UploadWorkspace() {
     operationMessage,
     previewChange,
     submitChange
+    ,
+    runValidation,
+    validatedExportUrl
   } = useUploadSession();
   const [selectedIssue, setSelectedIssue] = useState<UploadIssue | null>(null);
   const isWaiting = state === "initial" || state === "error" || state === "expired";
@@ -180,32 +184,48 @@ export default function UploadWorkspace() {
               />
               <div className="preview-layout">
                 <TablePreview session={session} />
-                <aside className="suggestions-card">
-                  <p className="eyebrow">Current result</p>
-                  <h4>Download current table</h4>
-                  <p>Only approved changes are included. Formal validation has not run yet.</p>
-                  {session.download_warnings.map((warning) => (
-                    <div className="download-warning" key={warning.code}>
-                      <strong>{warning.title}</strong>
-                      <p>{warning.message}</p>
-                    </div>
-                  ))}
-                  {downloadUrl ? (
-                    <a className="button button-forest download-button" href={downloadUrl}>
-                      Download current CSV
-                    </a>
-                  ) : null}
-                  <p className="download-note">
-                    <strong>
-                      {session.applied_change_count
-                        ? `${session.applied_change_count} approved ${
-                            session.applied_change_count === 1 ? "change is" : "changes are"
-                          } included.`
-                        : "Nothing has been changed yet."}
-                    </strong>{" "}
-                    Pending changes are never included.
-                  </p>
-                </aside>
+                <div className="result-sidebar">
+                  <ValidationCard
+                    busy={operationState === "working"}
+                    error={operationMessage}
+                    key={`${session.session_id}:${session.revision}`}
+                    onRunValidation={runValidation}
+                    session={session}
+                    validatedExportUrl={validatedExportUrl}
+                  />
+                  <aside className="suggestions-card">
+                    <p className="eyebrow">Current result</p>
+                    <h4>Download current table</h4>
+                    <p>
+                      {session.validation_status === "passed"
+                        ? "Validation has passed for the current table."
+                        : session.validation_status === "failed"
+                          ? "Validation found blockers. You can still download, but review the report first."
+                          : "Only approved changes are included. Formal validation has not run yet."}
+                    </p>
+                    {session.download_warnings.map((warning) => (
+                      <div className="download-warning" key={warning.code}>
+                        <strong>{warning.title}</strong>
+                        <p>{warning.message}</p>
+                      </div>
+                    ))}
+                    {downloadUrl ? (
+                      <a className="button button-forest download-button" href={downloadUrl}>
+                        Download current CSV
+                      </a>
+                    ) : null}
+                    <p className="download-note">
+                      <strong>
+                        {session.applied_change_count
+                          ? `${session.applied_change_count} approved ${
+                              session.applied_change_count === 1 ? "change is" : "changes are"
+                            } included.`
+                          : "Nothing has been changed yet."}
+                      </strong>{" "}
+                      Pending changes are never included.
+                    </p>
+                  </aside>
+                </div>
               </div>
               {selectedIssue ? (
                 <FixSidePanel
