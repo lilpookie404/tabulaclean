@@ -26,6 +26,7 @@ from .schemas import (
     PreviewRow,
     RevisionRequest,
     SessionSnapshot,
+    SuggestionRequest,
     ValidationRequest,
 )
 from .store import SessionStore, UploadSession
@@ -76,6 +77,8 @@ def _snapshot(session: UploadSession) -> SessionSnapshot:
         issue_count=len(session.issues),
         validation_status=session.validation_status,
         validation_result=session.validation_result,
+        suggestion_status=session.suggestion_status,
+        suggestion_result=session.suggestion_result,
         audit_log=session.audit_log,
         revision=session.revision,
         pending_change=session.pending_change,
@@ -236,6 +239,21 @@ def validate_upload_session(
             session_id,
             expected_revision=request.expected_revision,
             required_column_ids=request.required_column_ids,
+        ),
+    )
+
+
+@router.post("/sessions/{session_id}/suggestions", response_model=SessionSnapshot)
+def suggest_upload_changes(
+    session_id: str,
+    request: SuggestionRequest,
+) -> SessionSnapshot:
+    return _mutated_snapshot(
+        session_id,
+        lambda: session_store.suggest(
+            session_id,
+            expected_revision=request.expected_revision,
+            use_model=request.use_model,
         ),
     )
 

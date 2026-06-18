@@ -16,8 +16,8 @@ The current repository provides the React product shell, temporary CSV/XLSX
 upload sessions, source-data previews, basic quality checks, guided manual
 cleaning, risk-based approval, undo/reset, current-table CSV download,
 uploaded-file validation, validation ZIP export, the cleaning engine,
-structured actions, advanced workbench, and evaluation tasks that later
-product phases can build on.
+structured actions, on-demand hybrid suggestions, advanced workbench, and
+evaluation tasks that later product phases can build on.
 
 ## Evaluation Layer
 
@@ -57,5 +57,11 @@ required columns, run revisioned validation, review hard failures and warnings,
 and download a validation ZIP containing the cleaned CSV, validation report,
 and audit log.
 
-AI-generated suggestions, permanent file storage, accounts, and failure-case
-storage remain later product phases.
+Phase 5 adds on-demand hybrid suggestions for temporary sessions. TabulaClean
+builds local typed candidate actions from detected issues and can optionally
+use the configured model to rank or explain those candidates with metadata
+only. Suggested actions still go through preview, approval, undo, validation,
+and download gates.
+
+Permanent file storage, accounts, failure-case storage, full-table model calls,
+and model-evaluation navigation cleanup remain later product phases.

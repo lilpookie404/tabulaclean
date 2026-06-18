@@ -150,3 +150,17 @@ export function runUploadValidation(
     })
   );
 }
+
+export function generateUploadSuggestions(
+  sessionId: string,
+  expectedRevision: number,
+  useModel: boolean
+): Promise<UploadSession> {
+  return postJson<UploadSession>(
+    `/api/sessions/${encodeURIComponent(sessionId)}/suggestions`,
+    JSON.stringify({
+      expected_revision: expectedRevision,
+      use_model: useModel
+    })
+  );
+}

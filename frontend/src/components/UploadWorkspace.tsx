@@ -1,6 +1,6 @@
 import { type ChangeEvent, type DragEvent, useRef, useState } from "react";
 import { useUploadSession } from "../uploads/useUploadSession";
-import type { UploadIssue } from "../uploads/types";
+import type { CleaningAction, UploadIssue } from "../uploads/types";
 import FixSidePanel from "./FixSidePanel";
 import IssueSummary from "./IssueSummary";
 import TablePreview from "./TablePreview";
@@ -82,12 +82,17 @@ export default function UploadWorkspace() {
     operationState,
     operationMessage,
     previewChange,
-    submitChange
-    ,
+    submitChange,
+    generateSuggestions,
     runValidation,
     validatedExportUrl
   } = useUploadSession();
-  const [selectedIssue, setSelectedIssue] = useState<UploadIssue | null>(null);
+  const [selectedFix, setSelectedFix] = useState<{
+    issue: UploadIssue;
+    action?: CleaningAction;
+    autoPreview?: boolean;
+    key: string;
+  } | null>(null);
   const isWaiting = state === "initial" || state === "error" || state === "expired";
 
   return (
@@ -178,9 +183,25 @@ export default function UploadWorkspace() {
                 </p>
               ) : null}
               <IssueSummary
+                busy={operationState === "working"}
                 disabled={Boolean(session.pending_change)}
                 issues={session.issues}
-                onReviewFix={setSelectedIssue}
+                onGenerateSuggestions={() => generateSuggestions(false)}
+                onPreviewSuggestion={(issue, suggestion) =>
+                  setSelectedFix({
+                    issue,
+                    action: suggestion.action,
+                    autoPreview: true,
+                    key: suggestion.suggestion_id
+                  })
+                }
+                onReviewFix={(issue) =>
+                  setSelectedFix({
+                    issue,
+                    key: issue.type
+                  })
+                }
+                suggestionResult={session.suggestion_result}
               />
               <div className="preview-layout">
                 <TablePreview session={session} />
@@ -227,18 +248,20 @@ export default function UploadWorkspace() {
                   </aside>
                 </div>
               </div>
-              {selectedIssue ? (
+              {selectedFix ? (
                 <FixSidePanel
+                  autoPreview={selectedFix.autoPreview}
                   busy={operationState === "working"}
                   columns={session.columns}
                   error={operationMessage}
-                  issue={selectedIssue}
-                  key={selectedIssue.type}
-                  onClose={() => setSelectedIssue(null)}
+                  initialAction={selectedFix.action}
+                  issue={selectedFix.issue}
+                  key={selectedFix.key}
+                  onClose={() => setSelectedFix(null)}
                   onPreview={previewChange}
                   onSubmit={async (action) => {
                     await submitChange(action);
-                    setSelectedIssue(null);
+                    setSelectedFix(null);
                   }}
                 />
               ) : null}

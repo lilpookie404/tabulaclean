@@ -257,6 +257,151 @@ describe("CleanMyFilePage", () => {
     );
   });
 
+  it("generates issue-card suggestions and previews a suggested fix", async () => {
+    const suggested = {
+      ...session,
+      suggestion_status: "ready",
+      suggestion_result: {
+        revision: 0,
+        generated_at: "2026-06-18T12:00:00Z",
+        mode: "local",
+        model_status: "not_configured",
+        model_message: "Model enhancement was not requested.",
+        suggestions: [
+          {
+            suggestion_id: "whitespace-trim_whitespace-column_1",
+            issue_type: "whitespace",
+            title: "Trim padded text",
+            rationale: "Remove leading and trailing spaces from affected text columns.",
+            confidence: "high",
+            source: "local",
+            action: {
+              type: "trim_whitespace",
+              column_ids: ["column_1"]
+            }
+          }
+        ]
+      }
+    };
+    const preview = {
+      base_revision: 0,
+      action_type: "trim_whitespace",
+      summary: "Trim extra spaces",
+      risk: "low",
+      affected_count: 1,
+      affected_unit: "values",
+      unresolved_count: 0,
+      samples: [
+        {
+          row_number: 3,
+          before: { column_1: " Meera Joshi " },
+          after: { column_1: "Meera Joshi" }
+        }
+      ],
+      warnings: []
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session, 201))
+        .mockResolvedValueOnce(jsonResponse(suggested))
+        .mockResolvedValueOnce(jsonResponse(preview))
+    );
+    render(<CleanMyFilePage />);
+    fireEvent.change(screen.getByLabelText("Choose a CSV or XLSX file"), {
+      target: { files: [new File(["xlsx"], "customer-contacts.xlsx")] }
+    });
+    await screen.findByText("Here’s what we found.");
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate suggestions" }));
+
+    expect(await screen.findByText("Trim padded text")).toBeInTheDocument();
+    expect(
+      screen.getByText("Remove leading and trailing spaces from affected text columns.")
+    ).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/sessions/session-123/suggestions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: 0,
+          use_model: false
+        })
+      })
+    );
+
+    const whitespaceCard = screen
+      .getByText("Extra spaces were detected")
+      .closest("article");
+    fireEvent.click(
+      within(whitespaceCard as HTMLElement).getByRole("button", {
+        name: "Preview suggestion"
+      })
+    );
+
+    const panel = await screen.findByRole("complementary", {
+      name: "Review fix"
+    });
+    expect(await within(panel).findByText("Meera Joshi")).toBeInTheDocument();
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/sessions/session-123/change-previews",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: 0,
+          action: {
+            type: "trim_whitespace",
+            column_ids: ["column_1"]
+          }
+        })
+      })
+    );
+  });
+
+  it("disables suggestion generation while a risky change is pending", async () => {
+    const pendingPreview = {
+      base_revision: 0,
+      action_type: "fill_missing",
+      summary: "Fill missing values",
+      risk: "high",
+      affected_count: 1,
+      affected_unit: "cells",
+      unresolved_count: 0,
+      samples: [],
+      warnings: []
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        jsonResponse(
+          {
+            ...session,
+            pending_change: {
+              ...pendingPreview,
+              change_id: "change-1",
+              action: {
+                type: "fill_missing",
+                column_id: "column_2",
+                strategy: "most_common"
+              },
+              created_at: "2026-06-18T12:00:00Z"
+            }
+          },
+          201
+        )
+      )
+    );
+    render(<CleanMyFilePage />);
+    fireEvent.change(screen.getByLabelText("Choose a CSV or XLSX file"), {
+      target: { files: [new File(["xlsx"], "customer-contacts.xlsx")] }
+    });
+    await screen.findByText("Here’s what we found.");
+
+    expect(
+      screen.getByRole("button", { name: "Generate suggestions" })
+    ).toBeDisabled();
+  });
+
   it("opens a guided fix panel and applies a safe whitespace fix", async () => {
     const preview = {
       base_revision: 0,

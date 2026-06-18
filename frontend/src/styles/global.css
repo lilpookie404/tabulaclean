@@ -701,10 +701,30 @@ a {
   margin-bottom: 0.75rem;
 }
 
+.issue-summary-actions {
+  display: flex;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .workspace-subheading > span,
+.issue-summary-actions > span,
 .table-card-heading > span {
   color: var(--muted);
   font-size: 0.68rem;
+}
+
+.issue-suggestion-generate {
+  padding: 0.45rem 0.75rem;
+  font-size: 0.68rem;
+}
+
+.suggestion-status {
+  margin: -0.25rem 0 0.85rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .issue-grid {
@@ -740,6 +760,25 @@ a {
   margin-top: 0.65rem;
   color: var(--coral-text);
   font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.issue-suggestion {
+  margin-top: 0.8rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid rgb(185 69 49 / 18%);
+}
+
+.issue-suggestion strong {
+  margin-bottom: 0.25rem;
+  color: var(--forest);
+}
+
+.issue-suggestion small {
+  display: block;
+  margin-top: 0.45rem;
+  color: var(--muted);
+  font-size: 0.62rem;
   font-weight: 700;
 }
 

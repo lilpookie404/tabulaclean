@@ -135,6 +135,25 @@ export interface ValidationResult {
   };
 }
 
+export interface SuggestedAction {
+  suggestion_id: string;
+  issue_type: string;
+  title: string;
+  rationale: string;
+  confidence: "high" | "medium" | "low";
+  source: "local" | "ai";
+  action: CleaningAction;
+}
+
+export interface SuggestionResult {
+  revision: number;
+  generated_at: string;
+  mode: "local" | "ai_enhanced";
+  model_status: "not_configured" | "used" | "failed";
+  model_message: string;
+  suggestions: SuggestedAction[];
+}
+
 export interface UploadSession {
   session_id: string;
   filename: string;
@@ -147,6 +166,8 @@ export interface UploadSession {
   issue_count: number;
   validation_status: string;
   validation_result?: ValidationResult | null;
+  suggestion_status?: string;
+  suggestion_result?: SuggestionResult | null;
   audit_log: AuditEntry[];
   revision: number;
   pending_change: PendingChange | null;

@@ -160,6 +160,25 @@ class ValidationResult(BaseModel):
     summary: dict[str, int]
 
 
+class SuggestedAction(BaseModel):
+    suggestion_id: str
+    issue_type: str
+    title: str
+    rationale: str
+    confidence: Literal["high", "medium", "low"]
+    source: Literal["local", "ai"]
+    action: CleaningAction
+
+
+class SuggestionResult(BaseModel):
+    revision: int
+    generated_at: datetime
+    mode: Literal["local", "ai_enhanced"]
+    model_status: Literal["not_configured", "used", "failed"]
+    model_message: str
+    suggestions: list[SuggestedAction] = Field(default_factory=list)
+
+
 class ChangeRequest(BaseModel):
     expected_revision: int = Field(ge=0)
     action: CleaningAction
@@ -174,6 +193,11 @@ class ValidationRequest(BaseModel):
     required_column_ids: list[str] = Field(default_factory=list)
 
 
+class SuggestionRequest(BaseModel):
+    expected_revision: int = Field(ge=0)
+    use_model: bool = False
+
+
 class SessionSnapshot(BaseModel):
     session_id: str
     filename: str
@@ -186,6 +210,8 @@ class SessionSnapshot(BaseModel):
     issue_count: int
     validation_status: str = "not_run"
     validation_result: ValidationResult | None = None
+    suggestion_status: str = "not_run"
+    suggestion_result: SuggestionResult | None = None
     audit_log: list[AuditEntry] = Field(default_factory=list)
     revision: int = 0
     pending_change: PendingChange | None = None

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
   ChangePreview,
   CleaningAction,
@@ -11,6 +11,8 @@ interface FixSidePanelProps {
   columns: UploadColumn[];
   busy: boolean;
   error: string | null;
+  initialAction?: CleaningAction;
+  autoPreview?: boolean;
   onClose: () => void;
   onPreview: (action: CleaningAction) => Promise<ChangePreview>;
   onSubmit: (action: CleaningAction) => Promise<void>;
@@ -31,11 +33,41 @@ function displayValue(value: unknown) {
   return String(value);
 }
 
+function initialColumnId(
+  initialAction: CleaningAction | undefined,
+  fallback: string
+) {
+  if (
+    initialAction &&
+    "column_id" in initialAction &&
+    typeof initialAction.column_id === "string"
+  ) {
+    return initialAction.column_id;
+  }
+  return fallback;
+}
+
+function initialColumnIds(
+  initialAction: CleaningAction | undefined,
+  fallback: string[]
+) {
+  if (
+    initialAction &&
+    "column_ids" in initialAction &&
+    Array.isArray(initialAction.column_ids)
+  ) {
+    return initialAction.column_ids;
+  }
+  return fallback;
+}
+
 export default function FixSidePanel({
   issue,
   columns,
   busy,
   error,
+  initialAction,
+  autoPreview = false,
   onClose,
   onPreview,
   onSubmit
@@ -46,23 +78,44 @@ export default function FixSidePanel({
     [columns, issue.affected_columns]
   );
   const [columnId, setColumnId] = useState(
-    affectedColumns[0]?.id ?? columns[0]?.id ?? ""
+    initialColumnId(initialAction, affectedColumns[0]?.id ?? columns[0]?.id ?? "")
   );
   const [selectedColumnIds, setSelectedColumnIds] = useState(
-    issue.affected_columns
+    initialColumnIds(initialAction, issue.affected_columns)
   );
-  const [newName, setNewName] = useState("");
+  const [newName, setNewName] = useState(
+    initialAction?.type === "rename_column" ? initialAction.new_name : ""
+  );
   const [fillStrategy, setFillStrategy] =
-    useState<"explicit" | "mean" | "median" | "most_common">("explicit");
-  const [fillValue, setFillValue] = useState("");
-  const [keep, setKeep] = useState<"first" | "last">("first");
-  const [targetType, setTargetType] = useState<"integer" | "decimal">("decimal");
+    useState<"explicit" | "mean" | "median" | "most_common">(
+      initialAction?.type === "fill_missing" ? initialAction.strategy : "explicit"
+    );
+  const [fillValue, setFillValue] = useState(
+    initialAction?.type === "fill_missing" && initialAction.value !== undefined
+      ? String(initialAction.value)
+      : ""
+  );
+  const [keep, setKeep] = useState<"first" | "last">(
+    initialAction?.type === "drop_duplicates" ? initialAction.keep : "first"
+  );
+  const [targetType, setTargetType] = useState<"integer" | "decimal">(
+    initialAction?.type === "convert_numeric" ? initialAction.target_type : "decimal"
+  );
   const [dateOrder, setDateOrder] =
-    useState<"month_first" | "day_first">("day_first");
+    useState<"month_first" | "day_first">(
+      initialAction?.type === "standardize_date"
+        ? initialAction.date_order
+        : "day_first"
+    );
   const [outputFormat, setOutputFormat] =
-    useState<"YYYY-MM-DD" | "MM/DD/YYYY" | "DD/MM/YYYY">("YYYY-MM-DD");
+    useState<"YYYY-MM-DD" | "MM/DD/YYYY" | "DD/MM/YYYY">(
+      initialAction?.type === "standardize_date"
+        ? initialAction.output_format
+        : "YYYY-MM-DD"
+    );
   const [preview, setPreview] = useState<ChangePreview | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+  const autoPreviewed = useRef(false);
   const selectedColumn = columns.find((column) => column.id === columnId);
   const supportsCalculatedFill =
     selectedColumn?.inferred_type === "integer" ||
@@ -124,7 +177,7 @@ export default function FixSidePanel({
     targetType
   ]);
 
-  const previewAction = async () => {
+  const previewAction = useCallback(async () => {
     setLocalError(null);
     try {
       setPreview(await onPreview(action));
@@ -134,7 +187,13 @@ export default function FixSidePanel({
         caught instanceof Error ? caught.message : "We could not preview this change."
       );
     }
-  };
+  }, [action, onPreview]);
+
+  useEffect(() => {
+    if (!autoPreview || autoPreviewed.current) return;
+    autoPreviewed.current = true;
+    void previewAction();
+  }, [autoPreview, previewAction]);
 
   const changeField = (change: () => void) => {
     change();
