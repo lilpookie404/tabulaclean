@@ -439,7 +439,11 @@ warnings, and a validation ZIP for the current temporary session.
 
 Phase 5 adds on-demand hybrid suggestions for uploaded files. It does not add
 accounts, permanent spreadsheet storage, failure-case storage, full-table model
-calls, or model-evaluation navigation cleanup.
+calls, or model-evaluation redesign.
+
+Phase 6 removes internal placeholder pages from the primary navigation. The
+model-evaluation and failure-cases routes remain available by direct URL, while
+the visible app journey focuses on Clean My File and Review Changes.
 
 ### Run inference
 

@@ -63,5 +63,10 @@ use the configured model to rank or explain those candidates with metadata
 only. Suggested actions still go through preview, approval, undo, validation,
 and download gates.
 
+Phase 6 removes internal placeholder pages from the primary navigation. The
+model-evaluation and failure-cases routes remain available by direct URL for
+internal use, but the visible app journey now focuses on Clean My File and
+Review Changes.
+
 Permanent file storage, accounts, failure-case storage, full-table model calls,
-and model-evaluation navigation cleanup remain later product phases.
+and model-evaluation redesign remain later product phases.

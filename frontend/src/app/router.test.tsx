@@ -39,6 +39,13 @@ describe("app routes", () => {
     const primaryNavigation = screen.getByRole("navigation", {
       name: "Primary navigation"
     });
+    expect(
+      within(primaryNavigation).queryByRole("link", { name: "Model Evaluation" })
+    ).not.toBeInTheDocument();
+    expect(
+      within(primaryNavigation).queryByRole("link", { name: "Failure Cases" })
+    ).not.toBeInTheDocument();
+
     fireEvent.click(
       within(primaryNavigation).getByRole("link", { name: "Review Changes" })
     );
@@ -62,8 +69,22 @@ describe("app routes", () => {
   it("updates the document title for the model evaluation route", async () => {
     renderRoute("/model-evaluation");
 
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Model Evaluation" })
+    ).toBeInTheDocument();
     await waitFor(() => {
       expect(document.title).toBe("Model Evaluation | TabulaClean");
+    });
+  });
+
+  it("keeps the failure cases route available by direct URL", async () => {
+    renderRoute("/failure-cases");
+
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Failure Cases" })
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(document.title).toBe("Failure Cases | TabulaClean");
     });
   });
 
