@@ -4,9 +4,7 @@ import PageContainer from "./PageContainer";
 
 const navigationItems = [
   { to: "/", label: "Clean My File", end: true },
-  { to: "/review-changes", label: "Review Changes" },
-  { to: "/model-evaluation", label: "Model Evaluation" },
-  { to: "/failure-cases", label: "Failure Cases" }
+  { to: "/review-changes", label: "Review Changes" }
 ];
 
 function navLinkClassName({ isActive }: { isActive: boolean }) {
