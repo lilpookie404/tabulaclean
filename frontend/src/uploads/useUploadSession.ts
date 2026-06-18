@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   approveUploadChange,
   fetchUploadSession,
+  generateUploadSuggestions,
   previewUploadChange,
   rejectUploadChange,
   resetUploadChanges,
@@ -38,6 +39,7 @@ interface UploadSessionState {
   resetToOriginal: () => Promise<UploadSession>;
   refreshSession: () => Promise<UploadSession | null>;
   runValidation: (requiredColumnIds: string[]) => Promise<UploadSession>;
+  generateSuggestions: (useModel?: boolean) => Promise<UploadSession>;
   validatedExportUrl: string | null;
 }
 
@@ -298,6 +300,20 @@ export function useUploadSession(): UploadSessionState {
     [runOperation]
   );
 
+  const generateSuggestions = useCallback(
+    (useModel = false) =>
+      runOperation(async (current) => {
+        const updated = await generateUploadSuggestions(
+          current.session_id,
+          current.revision,
+          useModel
+        );
+        setSession(updated);
+        return updated;
+      }),
+    [runOperation]
+  );
+
   const downloadUrl = useMemo(
     () =>
       session
@@ -331,6 +347,7 @@ export function useUploadSession(): UploadSessionState {
     resetToOriginal,
     refreshSession,
     runValidation,
+    generateSuggestions,
     validatedExportUrl
   };
 }

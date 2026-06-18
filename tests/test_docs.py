@@ -23,6 +23,9 @@ def test_readme_contains_core_commands() -> None:
     assert "Phase 4" in readme
     assert "validated-export" in readme
     assert "validation ZIP" in readme
+    assert "Phase 5" in readme
+    assert "suggestions" in readme
+    assert "metadata-only model" in readme
 
 
 def test_project_direction_marks_phase_one_foundation_complete() -> None:
@@ -32,3 +35,6 @@ def test_project_direction_marks_phase_one_foundation_complete() -> None:
     assert "upload sessions" in direction
     assert "Phase 3 adds deterministic manual cleaning" in direction
     assert "Phase 4 adds uploaded-file validation" in direction
+    assert "Phase 5 adds on-demand hybrid suggestions" in direction
+    assert "metadata" in direction
+    assert "full-table model calls" in direction

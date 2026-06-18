@@ -20,8 +20,8 @@ This repository now provides the React product shell, temporary CSV/XLSX
 upload sessions, table previews, basic quality checks, CSV download, the
 guided manual cleaning workflow, risk-based review, undo/reset history, the
 cleaning engine, uploaded-file validation, validation ZIP exports, and the
-advanced evaluation suite. AI-assisted suggestions remain a later product
-phase.
+advanced evaluation suite. Phase 5 adds on-demand hybrid suggestions for
+uploaded files without sending raw table values to the optional model.
 
 ## Project Direction
 
@@ -88,6 +88,8 @@ The product API supports temporary, process-local spreadsheet sessions:
 - `POST /api/sessions/{session_id}/reset` restores the uploaded table.
 - `POST /api/sessions/{session_id}/validations` runs revisioned validation
   with optional required columns.
+- `POST /api/sessions/{session_id}/suggestions` generates revisioned local
+  suggestions, optionally enhanced by a metadata-only model call.
 - `GET /api/sessions/{session_id}/download` downloads the current approved
   table as UTF-8 BOM CSV.
 - `GET /api/sessions/{session_id}/validated-export` downloads a validation ZIP
@@ -128,6 +130,14 @@ contains `cleaned.csv`, `validation-report.json`, and `audit-log.json`.
 TabulaClean warns when text beginning with `=`, `+`, `-`, or `@` could be
 interpreted as a formula by spreadsheet software. It does not silently rewrite
 those values.
+
+Phase 5 adds on-demand hybrid suggestions. The backend first builds typed local
+candidate actions from the current issue scan, then may ask the configured
+OpenAI-compatible model to rank or explain those candidates using only metadata
+such as column names, inferred types, issue summaries, counts, and action
+summaries. Raw cell values and preview rows are not sent to the model. Suggested
+actions still use the existing preview, approval, undo, validation, and download
+gates.
 
 ## Design Goals
 
@@ -418,16 +428,18 @@ uvicorn server.app:app --host 0.0.0.0 --port 8000
 Open `http://localhost:8000`. FastAPI serves the compiled React application and
 keeps `/play` available as the advanced evaluation workspace.
 
-## Phase 4 Boundary
+## Phase 5 Boundary
 
 Phase 3 adds guided deterministic cleaning, change previews, approval for risky
 changes, activity history, undo, reset, and download of the current approved
 table.
 
 Phase 4 adds uploaded-file validation, required-column checks, validation
-warnings, and a validation ZIP for the current temporary session. It does not
-add AI suggestions, failure-case storage, accounts, or permanent spreadsheet
-storage.
+warnings, and a validation ZIP for the current temporary session.
+
+Phase 5 adds on-demand hybrid suggestions for uploaded files. It does not add
+accounts, permanent spreadsheet storage, failure-case storage, full-table model
+calls, or model-evaluation navigation cleanup.
 
 ### Run inference
 

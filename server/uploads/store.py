@@ -26,8 +26,10 @@ from .schemas import (
     ColumnDescriptor,
     DetectedIssue,
     PendingChange,
+    SuggestionResult,
     ValidationResult,
 )
+from .suggestions import generate_suggestion_result
 from .validation import formula_download_warnings, validate_upload_table
 
 
@@ -58,6 +60,8 @@ class UploadSession:
     expires_at: datetime
     validation_status: str = "not_run"
     validation_result: ValidationResult | None = None
+    suggestion_status: str = "not_run"
+    suggestion_result: SuggestionResult | None = None
     revision: int = 0
     active_actions: list[AppliedAction] = field(default_factory=list)
     pending_change: PendingChange | None = None
@@ -228,6 +232,10 @@ class SessionStore:
         session.validation_status = "not_run"
         session.validation_result = None
 
+    def _clear_suggestions(self, session: UploadSession) -> None:
+        session.suggestion_status = "not_run"
+        session.suggestion_result = None
+
     def _profile(
         self,
         session: UploadSession,
@@ -361,6 +369,7 @@ class SessionStore:
         session.memory_bytes = memory_bytes
         session.revision += 1
         self._clear_validation(session)
+        self._clear_suggestions(session)
         session.active_actions.append(
             AppliedAction(
                 change_id=change_id,
@@ -425,6 +434,7 @@ class SessionStore:
                 )
                 return session
             self._clear_validation(session)
+            self._clear_suggestions(session)
             session.pending_change = PendingChange(
                 **preview.model_dump(),
                 change_id=change_id,
@@ -487,6 +497,7 @@ class SessionStore:
             )
             session.pending_change = None
             self._clear_validation(session)
+            self._clear_suggestions(session)
             return session
 
     def reject_change(
@@ -513,6 +524,7 @@ class SessionStore:
             )
             session.pending_change = None
             self._clear_validation(session)
+            self._clear_suggestions(session)
             return session
 
     def _replay(
@@ -561,6 +573,7 @@ class SessionStore:
             session.active_actions = list(remaining)
             session.revision += 1
             self._clear_validation(session)
+            self._clear_suggestions(session)
             self._audit(
                 session,
                 now=now,
@@ -606,6 +619,7 @@ class SessionStore:
             if table_changed:
                 session.revision += 1
             self._clear_validation(session)
+            self._clear_suggestions(session)
             self._audit(
                 session,
                 now=now,
@@ -648,6 +662,31 @@ class SessionStore:
             )
             session.validation_status = result.status
             session.validation_result = result
+            return session
+
+    def suggest(
+        self,
+        session_id: str,
+        *,
+        expected_revision: int,
+        use_model: bool,
+    ) -> UploadSession:
+        with self._lock:
+            now = self._clock()
+            session = self._get_locked(session_id, now)
+            self._check_revision(session, expected_revision)
+            self._check_no_pending(session)
+            result = generate_suggestion_result(
+                dataframe=session.current_dataframe,
+                display_headers=session.display_headers,
+                columns=session.columns,
+                issues=session.issues,
+                revision=session.revision,
+                generated_at=now,
+                use_model=use_model,
+            )
+            session.suggestion_status = "ready"
+            session.suggestion_result = result
             return session
 
     def clear(self) -> None:

@@ -279,6 +279,60 @@ describe("useUploadSession", () => {
     );
   });
 
+  it("generates suggestions for the current revision", async () => {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
+    const suggested = {
+      ...session,
+      suggestion_status: "ready",
+      suggestion_result: {
+        revision: 0,
+        generated_at: "2026-06-18T12:00:00Z",
+        mode: "local",
+        model_status: "not_configured",
+        model_message: "Model enhancement was not requested.",
+        suggestions: [
+          {
+            suggestion_id: "numeric_text-convert_numeric-column_2",
+            issue_type: "numeric_text",
+            title: "Convert amount to numbers",
+            rationale: "Convert strongly numeric-looking text into decimal values.",
+            confidence: "high",
+            source: "local",
+            action: {
+              type: "convert_numeric",
+              column_id: "column_2",
+              target_type: "decimal"
+            }
+          }
+        ]
+      }
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn()
+        .mockResolvedValueOnce(jsonResponse(session))
+        .mockResolvedValueOnce(jsonResponse(suggested))
+    );
+    const { result } = renderHook(() => useUploadSession());
+    await waitFor(() => expect(result.current.state).toBe("success"));
+
+    await act(async () => {
+      await result.current.generateSuggestions(true);
+    });
+
+    expect(result.current.session).toEqual(suggested);
+    expect(fetch).toHaveBeenLastCalledWith(
+      "/api/sessions/session-123/suggestions",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          expected_revision: 0,
+          use_model: true
+        })
+      })
+    );
+  });
+
   it("previews a change without replacing the current session", async () => {
     sessionStorage.setItem(SESSION_STORAGE_KEY, session.session_id);
     const preview = {
