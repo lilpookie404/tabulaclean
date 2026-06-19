@@ -182,6 +182,41 @@ describe("CleanMyFilePage", () => {
     expect(uploadedFile.name).toBe("messy-contacts.csv");
   });
 
+  it("loads a sample sales CSV through the existing upload flow", async () => {
+    const sampleSession = {
+      ...session,
+      filename: "sales-cleaning-demo.csv",
+      sheet_name: null
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response("order_id,amount\nORD-2001,$120.50\n", {
+          status: 200,
+          headers: { "Content-Type": "text/csv" }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(sampleSession, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CleanMyFilePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try sample sales CSV" }));
+
+    expect(await screen.findByText("Here’s what we found.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/samples/sales-cleaning-demo.csv");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/uploads",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData)
+      })
+    );
+    const uploadedBody = fetchMock.mock.calls[1][1].body as FormData;
+    const uploadedFile = uploadedBody.get("file") as File;
+    expect(uploadedFile).toBeInstanceOf(File);
+    expect(uploadedFile.name).toBe("sales-cleaning-demo.csv");
+  });
+
   it("announces upload progress while parsing", async () => {
     let resolveFetch: ((response: Response) => void) | undefined;
     vi.stubGlobal(
