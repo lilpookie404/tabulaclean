@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 import pandas as pd
 
 from .errors import UploadError
-from .parser import ParseLimits, parse_upload
+from .parser import ParseLimits, parse_upload, upload_size_error_message
 from .profiler import profile_table
 from .schemas import (
     ChangePreview,
@@ -119,7 +119,7 @@ async def create_upload_session(file: UploadFile) -> SessionSnapshot:
         raise UploadError(
             413,
             "file_too_large",
-            "Please choose a spreadsheet no larger than 10 MB.",
+            upload_size_error_message(parse_limits),
         )
 
     parsed = parse_upload(filename, payload, limits=parse_limits)

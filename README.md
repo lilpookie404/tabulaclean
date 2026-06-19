@@ -4,7 +4,7 @@ emoji: "📦"
 colorFrom: blue
 colorTo: indigo
 sdk: docker
-app_port: 8000
+app_port: 7860
 ---
 
 # TabulaClean
@@ -16,7 +16,7 @@ The product direction is a guided workflow where users upload a spreadsheet,
 preview data issues, review suggested fixes, approve risky changes, validate
 the cleaned data, and download a trustworthy result.
 
-**Live Demo: Coming soon**
+**Live Demo: https://lilpookie404-tabulaclean.hf.space**
 
 This repository now provides the React product shell, temporary CSV/XLSX
 upload sessions, table previews, basic quality checks, CSV download, the
@@ -84,7 +84,7 @@ cd frontend
 npm ci
 npm run build
 cd ..
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+uvicorn server.main:app --host 0.0.0.0 --port 7860
 ```
 
 ## Test Commands
@@ -94,14 +94,16 @@ python3 -m pytest
 cd frontend && npm run check
 python3 inference.py
 docker build -t tabulaclean .
-openenv validate http://localhost:8000
+openenv validate http://localhost:7860
 ```
 
 ## Deployment Note
 
-TabulaClean deploys as a Docker Hugging Face Space. Build from the root
-`Dockerfile`, set `HF_TOKEN` as a Space secret for optional model calls, and
-validate the live container with `openenv validate` once the Space is running.
+TabulaClean deploys as a Docker Hugging Face Space on port `7860`. Build from
+the root `Dockerfile`, set `HF_TOKEN` as a Space secret for optional model
+calls, and validate the live container with `openenv validate` once the Space is
+running. See [docs/deployment.md](docs/deployment.md) for the full release
+checklist.
 
 ## Feedback
 
@@ -507,10 +509,10 @@ cd frontend
 npm ci
 npm run build
 cd ..
-uvicorn server.app:app --host 0.0.0.0 --port 8000
+uvicorn server.main:app --host 0.0.0.0 --port 7860
 ```
 
-Open `http://localhost:8000`. FastAPI serves the compiled React application and
+Open `http://localhost:7860`. FastAPI serves the compiled React application and
 keeps `/play` available as the advanced evaluation workspace.
 
 ## Phase 5 Boundary
@@ -578,7 +580,8 @@ The project includes the core runtime files:
 - `uv.lock`
 - root `Dockerfile`
 - root `inference.py`
-- `server/app.py` with `main()`
+- `server/app.py` with the app factory and local entrypoint
+- `server/main.py` for the production-compatible entrypoint
 
 ## Docker
 
@@ -586,32 +589,41 @@ Build and run locally:
 
 ```bash
 docker build -t tabulaclean .
-docker run --rm -p 8000:8000 tabulaclean
+docker run --rm -p 7860:7860 tabulaclean
 ```
 
 Then validate the live container:
 
 ```bash
-python3 -m uv run --python 3.11 openenv validate http://localhost:8000
+python3 -m uv run --python 3.11 openenv validate http://localhost:7860
 ```
 
 ## Hugging Face Spaces
 
 This project is designed for a containerized Hugging Face Space:
 
-1. create a Docker Space
-2. push this repository
+1. use the existing Docker Space at `lilpookie404/tabulaclean`
+2. push `main` to GitHub and the `space` remote
 3. let the Space build from the root `Dockerfile`
-4. add Space settings before first boot:
+4. confirm these runtime values are configured:
+   - `APP_ENV=production`
+   - `PUBLIC_DEMO_MODE=true`
+   - `UPLOAD_SESSION_TTL_MINUTES=30`
+   - `MAX_UPLOAD_MB=10`
+   - `MAX_ACTIVE_SESSIONS=10`
+5. add optional AI settings if needed:
    - `HF_TOKEN` as a Secret
    - `API_BASE_URL` as a Variable if overriding the default
    - `MODEL_NAME` as a Variable if overriding the default
-5. confirm the Space is `Running`
-6. validate the public runtime
+6. confirm the Space is `Running`
+7. validate the public runtime
 
 ```bash
-python3 -m uv run --python 3.11 openenv validate https://<your-space>.hf.space
+python3 -m uv run --python 3.11 openenv validate https://lilpookie404-tabulaclean.hf.space
 ```
+
+See [docs/deployment.md](docs/deployment.md) for the full deployment and smoke
+test checklist.
 
 ## Export Artifacts
 

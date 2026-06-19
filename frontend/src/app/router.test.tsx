@@ -58,6 +58,17 @@ describe("app routes", () => {
     ).toBeInTheDocument();
   });
 
+  it("redirects /review to the canonical Review Changes route", async () => {
+    renderRoute("/review");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Review Changes"
+      })
+    ).toBeInTheDocument();
+  });
+
   it("renders the not-found page for an unknown route", () => {
     renderRoute("/not-a-real-page");
 

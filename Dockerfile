@@ -13,6 +13,11 @@ FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
+ENV APP_ENV=production
+ENV PUBLIC_DEMO_MODE=true
+ENV UPLOAD_SESSION_TTL_MINUTES=30
+ENV MAX_UPLOAD_MB=10
+ENV MAX_ACTIVE_SESSIONS=10
 
 WORKDIR /app
 
@@ -28,9 +33,9 @@ COPY tabular_cleaning_env /app/tabular_cleaning_env
 COPY tasks /app/tasks
 COPY --from=frontend-builder /app/frontend/dist /app/frontend/dist
 
-EXPOSE 8000
+EXPOSE 7860
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:7860/health')" || exit 1
 
-CMD ["uvicorn", "server.app:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "7860"]

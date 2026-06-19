@@ -1,4 +1,8 @@
-import { createBrowserRouter, type RouteObject } from "react-router-dom";
+import {
+  createBrowserRouter,
+  Navigate,
+  type RouteObject
+} from "react-router-dom";
 import CleanMyFilePage from "../pages/CleanMyFilePage";
 import FailureCasesPage from "../pages/FailureCasesPage";
 import ModelEvaluationPage from "../pages/ModelEvaluationPage";
@@ -20,6 +24,10 @@ export const appRoutes: RouteObject[] = [
       {
         path: "review-changes",
         element: <ReviewChangesPage />
+      },
+      {
+        path: "review",
+        element: <Navigate to="/review-changes" replace />
       },
       {
         path: "model-evaluation",

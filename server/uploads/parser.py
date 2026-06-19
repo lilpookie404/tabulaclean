@@ -27,6 +27,10 @@ class ParseLimits:
     max_dataframe_bytes: int = 100 * MEBIBYTE
     max_archive_uncompressed_bytes: int = 100 * MEBIBYTE
 
+    @property
+    def max_upload_mebibytes(self) -> int:
+        return max(1, self.max_upload_bytes // MEBIBYTE)
+
 
 @dataclass
 class ParsedTable:
@@ -40,6 +44,13 @@ class ParsedTable:
 
 def _invalid_file(message: str) -> UploadError:
     return UploadError(422, "invalid_file", message)
+
+
+def upload_size_error_message(limits: ParseLimits) -> str:
+    return (
+        "Please choose a spreadsheet no larger than "
+        f"{limits.max_upload_mebibytes} MB."
+    )
 
 
 def _display_header(value: Any) -> str:
@@ -258,7 +269,7 @@ def parse_upload(
         raise UploadError(
             413,
             "file_too_large",
-            "Please choose a spreadsheet no larger than 10 MB.",
+            upload_size_error_message(selected_limits),
         )
 
     if suffix == ".csv":

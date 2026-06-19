@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 import re
 from typing import Any, Iterable
+import warnings
 
 import pandas as pd
 
@@ -83,7 +84,13 @@ def _date_format(value: Any) -> tuple[str, bool] | None:
     for pattern, label, includes_time in patterns:
         if re.fullmatch(pattern, text):
             try:
-                pd.to_datetime(text, errors="raise")
+                with warnings.catch_warnings():
+                    warnings.filterwarnings(
+                        "ignore",
+                        message=r"Parsing dates in .* format when dayfirst=False.*",
+                        category=UserWarning,
+                    )
+                    pd.to_datetime(text, errors="raise")
             except (TypeError, ValueError):
                 return None
             return label, includes_time

@@ -10,7 +10,7 @@ from threading import Thread
 from typing import Any, Dict
 
 import inference
-from fastapi import Query, Request
+from fastapi import APIRouter, Query, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -20,11 +20,16 @@ from tabular_cleaning_env.models import TabularCleaningAction, TabularCleaningOb
 from tabular_cleaning_env.openenv_compat import create_app
 from tabular_cleaning_env.tasks import TASKS
 
+from .config import (
+    RuntimeSettings,
+    load_runtime_settings,
+    parse_limits_from_settings,
+    session_store_from_settings,
+)
 from .environment import TabularCleaningEnvironment
 from .frontend import install_frontend
+from .uploads import router as upload_routes
 from .uploads.errors import UploadError
-from .uploads.router import router as upload_router
-from .uploads.router import upload_error_handler
 
 BASE_DIR = Path(__file__).resolve().parent
 TEMPLATES_DIR = BASE_DIR / "templates"
@@ -34,14 +39,20 @@ DEFAULT_MODE = "manual"
 DEFAULT_RUNNER = "deterministic"
 RUNNER_OPTIONS = {"deterministic", "llm"}
 
-app = create_app(
-    TabularCleaningEnvironment,
-    TabularCleaningAction,
-    TabularCleaningObservation,
-    env_name="tabular_cleaning_env",
-)
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-app.add_exception_handler(UploadError, upload_error_handler)
+play_router = APIRouter()
+
+
+async def production_unexpected_error_handler(
+    _: Request,
+    __: Exception,
+) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "internal_error",
+            "message": "Something went wrong. Please try again.",
+        },
+    )
 
 
 async def upload_request_validation_handler(
@@ -61,11 +72,29 @@ async def upload_request_validation_handler(
     return await request_validation_exception_handler(request, exc)
 
 
-app.add_exception_handler(
-    RequestValidationError,
-    upload_request_validation_handler,
-)
-app.include_router(upload_router)
+def create_application(settings: RuntimeSettings | None = None) -> Any:
+    runtime_settings = settings or load_runtime_settings()
+    upload_routes.parse_limits = parse_limits_from_settings(runtime_settings)
+    upload_routes.session_store = session_store_from_settings(runtime_settings)
+
+    fastapi_app = create_app(
+        TabularCleaningEnvironment,
+        TabularCleaningAction,
+        TabularCleaningObservation,
+        env_name="tabular_cleaning_env",
+    )
+    fastapi_app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+    fastapi_app.add_exception_handler(UploadError, upload_routes.upload_error_handler)
+    fastapi_app.add_exception_handler(
+        RequestValidationError,
+        upload_request_validation_handler,
+    )
+    if runtime_settings.is_production:
+        fastapi_app.add_exception_handler(Exception, production_unexpected_error_handler)
+    fastapi_app.include_router(upload_routes.router)
+    fastapi_app.include_router(play_router)
+    install_frontend(fastapi_app)
+    return fastapi_app
 
 
 def _task_summary(task_id: str) -> Dict[str, Any]:
@@ -96,12 +125,12 @@ def _sse_event(name: str, payload: Dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(payload, ensure_ascii=True)}\n\n"
 
 
-@app.get("/play", include_in_schema=False)
+@play_router.get("/play", include_in_schema=False)
 def play() -> FileResponse:
     return FileResponse(TEMPLATES_DIR / "play.html")
 
 
-@app.get("/play/api/config")
+@play_router.get("/play/api/config")
 def play_config() -> Dict[str, Any]:
     llm_meta = inference.llm_status()
     return {
@@ -116,7 +145,7 @@ def play_config() -> Dict[str, Any]:
     }
 
 
-@app.get("/play/api/autorun-stream")
+@play_router.get("/play/api/autorun-stream")
 def autorun_stream(
     task: str = Query(DEFAULT_TASK_ID),
     runner: str = Query(DEFAULT_RUNNER),
@@ -247,7 +276,7 @@ def autorun_stream(
     )
 
 
-install_frontend(app)
+app = create_application()
 
 
 def main(host: str = "0.0.0.0", port: int = 8000) -> None:

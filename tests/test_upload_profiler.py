@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import warnings
+
 import pandas as pd
 
 from server.uploads.parser import ParsedTable
@@ -113,3 +115,17 @@ def test_date_detection_does_not_scan_ordinary_text_without_strong_evidence() ->
     profile = profile_table(parsed)
 
     assert all(issue.type != "inconsistent_dates" for issue in profile.issues)
+
+
+def test_profile_table_suppresses_expected_pandas_date_warnings() -> None:
+    parsed = _parsed(
+        ["signup_date"],
+        [["18-01-2026"], ["20/01/2026"], ["2026-01-21"]],
+    )
+
+    with warnings.catch_warnings(record=True) as captured:
+        warnings.simplefilter("always")
+        profile = profile_table(parsed)
+
+    assert any(issue.type == "inconsistent_dates" for issue in profile.issues)
+    assert captured == []

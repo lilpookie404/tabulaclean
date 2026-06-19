@@ -2,8 +2,8 @@ spec_version: 1
 name: tabular_cleaning_env
 type: space
 runtime: fastapi
-app: server.app:app
-port: 8000
+app: server.main:app
+port: 7860
 tasks:
   - easy_contacts_cleanup
   - medium_orders_cleanup

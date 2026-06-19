@@ -27,10 +27,30 @@ def test_readme_contains_core_commands() -> None:
     assert "suggestions" in readme
     assert "metadata-only model" in readme
     assert "Phase 6" in readme
-    assert "Live Demo: Coming soon" in readme
+    assert "Live Demo: https://lilpookie404-tabulaclean.hf.space" in readme
     assert "## Screenshots" in readme
     assert "## Tech Stack" in readme
     assert "GitHub Issues" in readme
+
+
+def test_deployment_docs_cover_public_release_workflow() -> None:
+    deployment = Path("docs/deployment.md").read_text(encoding="utf-8")
+
+    assert "docker build -t tabulaclean" in deployment
+    assert "docker run --rm -p 7860:7860" in deployment
+    assert "uvicorn server.main:app --host 0.0.0.0 --port 7860" in deployment
+    assert "lilpookie404/tabulaclean" in deployment
+    assert "APP_ENV=production" in deployment
+    assert "PUBLIC_DEMO_MODE=true" in deployment
+    assert "UPLOAD_SESSION_TTL_MINUTES=30" in deployment
+    assert "MAX_UPLOAD_MB=10" in deployment
+    assert "MAX_ACTIVE_SESSIONS=10" in deployment
+    assert "API_BASE_URL" in deployment
+    assert "MODEL_NAME" in deployment
+    assert "HF_TOKEN" in deployment
+    assert "/health" in deployment
+    assert "/review" in deployment
+    assert "Known limitations" in deployment
 
 
 def test_project_direction_marks_phase_one_foundation_complete() -> None:
