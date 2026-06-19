@@ -577,6 +577,98 @@ a {
   border: 0;
 }
 
+.sample-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: #fff;
+}
+
+.sample-actions-label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.sample-actions > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  justify-content: flex-end;
+}
+
+.sample-button {
+  margin-top: 0;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sample-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.first-use-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 0.72fr);
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.how-it-works,
+.demo-notice {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: #fff;
+}
+
+.how-it-works h4 {
+  margin-bottom: 0.75rem;
+}
+
+.how-it-works ol {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.how-it-works li,
+.demo-notice p {
+  color: var(--muted);
+  font-size: 0.76rem;
+  line-height: 1.5;
+}
+
+.demo-notice {
+  background: #fff8df;
+}
+
+.demo-notice strong {
+  display: block;
+  margin-bottom: 0.35rem;
+}
+
+.demo-notice p {
+  margin: 0;
+}
+
+.feedback-link {
+  display: inline-flex;
+  margin-top: 0.8rem;
+  color: var(--coral-text);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -1481,6 +1573,10 @@ a {
     grid-template-columns: 1fr 1fr;
   }
 
+  .first-use-grid {
+    grid-template-columns: 1fr;
+  }
+
   .preview-layout {
     grid-template-columns: 1fr;
   }
@@ -1547,11 +1643,20 @@ a {
   }
 
   .pending-review-banner,
+  .sample-actions,
   .history-actions,
   .review-actions,
   .dialog-actions {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .sample-actions > div {
+    justify-content: stretch;
+  }
+
+  .sample-button {
+    width: 100%;
   }
 
   .change-sample,

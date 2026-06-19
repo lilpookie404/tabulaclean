@@ -1,0 +1,9 @@
+contact_id,full_name,email,phone,signup_date,customer_segment
+C-1001," Maya Chen ","MAYA.CHEN@example.com "," 555-0101 ","2026/01/15"," vip "
+C-1002,"Jordan Lee","jordan.lee@example.com","555-0102","01/18/2026","standard"
+C-1003," Priya Shah ","","555-0103","18-01-2026","Trial"
+C-1004,"Noah Rivera","noah.rivera@example.com ","","2026-01-19","standard "
+C-1005,"Ava Patel","ava.patel@example.com"," 555-0105","Jan 20 2026","VIP"
+C-1005,"Ava Patel","ava.patel@example.com"," 555-0105","Jan 20 2026","VIP"
+C-1006," Liam Brooks ","liam.brooks@example.com","555-0106","20/01/2026","standard"
+C-1007,"Sofia Garcia","","555-0107","2026.01.22",""

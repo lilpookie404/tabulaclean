@@ -7,6 +7,31 @@ import TablePreview from "./TablePreview";
 import UploadProgress from "./UploadProgress";
 import ValidationCard from "./ValidationCard";
 
+const FEEDBACK_URL = "https://github.com/lilpookie404/tabulaclean/issues";
+
+const HOW_IT_WORKS_STEPS = [
+  "Upload a file",
+  "Review detected issues",
+  "Preview and apply fixes",
+  "Validate required columns",
+  "Download the cleaned CSV"
+];
+
+const SAMPLE_FILES = [
+  {
+    id: "contacts",
+    label: "Try sample contacts CSV",
+    filename: "messy-contacts.csv",
+    href: "/samples/messy-contacts.csv"
+  },
+  {
+    id: "sales",
+    label: "Try sample sales CSV",
+    filename: "sales-cleaning-demo.csv",
+    href: "/samples/sales-cleaning-demo.csv"
+  }
+];
+
 interface UploadPickerProps {
   busy?: boolean;
   buttonLabel?: string;
@@ -71,6 +96,46 @@ function UploadPicker({ busy = false, buttonLabel = "Choose file", onFile }: Upl
   );
 }
 
+interface SampleFileActionsProps {
+  busy: boolean;
+  loadingSampleId: string | null;
+  onSampleFile: (sample: (typeof SAMPLE_FILES)[number]) => void;
+}
+
+function SampleFileActions({
+  busy,
+  loadingSampleId,
+  onSampleFile
+}: SampleFileActionsProps) {
+  return (
+    <div className="sample-actions" aria-label="Sample files">
+      <p className="sample-actions-label">No file handy?</p>
+      <div>
+        {SAMPLE_FILES.map((sample) => (
+          <button
+            className="button button-outline sample-button"
+            disabled={busy}
+            key={sample.id}
+            onClick={() => onSampleFile(sample)}
+            type="button"
+          >
+            {loadingSampleId === sample.id ? "Loading sample" : sample.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+async function sampleToFile(sample: (typeof SAMPLE_FILES)[number]) {
+  const response = await fetch(sample.href);
+  if (!response.ok) {
+    throw new Error("We could not load that sample file. Please try uploading your own CSV.");
+  }
+  const blob = await response.blob();
+  return new File([blob], sample.filename, { type: "text/csv" });
+}
+
 export default function UploadWorkspace() {
   const {
     state,
@@ -93,12 +158,38 @@ export default function UploadWorkspace() {
     autoPreview?: boolean;
     key: string;
   } | null>(null);
+  const [loadingSampleId, setLoadingSampleId] = useState<string | null>(null);
+  const [sampleError, setSampleError] = useState<string | null>(null);
   const isWaiting = state === "initial" || state === "error" || state === "expired";
+  const uploadBusy = state === "uploading" || loadingSampleId !== null;
+  const uploadAlertMessage = sampleError ?? message;
+  const uploadAlertTitle = sampleError
+    ? "We could not open that sample"
+    : state === "expired"
+      ? "That session has expired"
+      : "We could not open that file";
+
+  const uploadSample = async (sample: (typeof SAMPLE_FILES)[number]) => {
+    setLoadingSampleId(sample.id);
+    setSampleError(null);
+    try {
+      const file = await sampleToFile(sample);
+      await uploadFile(file);
+    } catch (error) {
+      setSampleError(
+        error instanceof Error
+          ? error.message
+          : "We could not load that sample file. Please try uploading your own CSV."
+      );
+    } finally {
+      setLoadingSampleId(null);
+    }
+  };
 
   return (
     <section className="workspace-section" data-cursor-tone="forest" id="workspace">
       <div className="section-heading">
-        <h2>Expressive outside.<br />Focused inside.</h2>
+        <h2>Upload, clean, validate.</h2>
         <p>Upload a spreadsheet, understand its basic quality issues, and keep control of what happens next.</p>
       </div>
       <div className="workspace-frame upload-workspace">
@@ -129,15 +220,49 @@ export default function UploadWorkspace() {
               <p className="eyebrow">New cleaning session</p>
               <h3>Start with your spreadsheet</h3>
               <p className="workspace-intro">
-                Your file stays in temporary memory and expires after 30 minutes of inactivity.
+                Upload a CSV or Excel file to detect messy data, preview fixes,
+                validate the cleaned result, and download a safer CSV.
               </p>
-              {message ? (
+              {uploadAlertMessage ? (
                 <div className="upload-message" role="alert">
-                  <strong>{state === "expired" ? "That session has expired" : "We could not open that file"}</strong>
-                  <p>{message}</p>
+                  <strong>{uploadAlertTitle}</strong>
+                  <p>{uploadAlertMessage}</p>
                 </div>
               ) : null}
-              <UploadPicker buttonLabel={message ? "Choose another file" : "Choose file"} onFile={uploadFile} />
+              <UploadPicker
+                busy={uploadBusy}
+                buttonLabel={message ? "Choose another file" : "Choose file"}
+                onFile={(file) => {
+                  setSampleError(null);
+                  void uploadFile(file);
+                }}
+              />
+              <SampleFileActions
+                busy={uploadBusy}
+                loadingSampleId={loadingSampleId}
+                onSampleFile={(sample) => void uploadSample(sample)}
+              />
+              <div className="first-use-grid">
+                <section className="how-it-works" aria-labelledby="how-it-works-heading">
+                  <h4 id="how-it-works-heading">How it works</h4>
+                  <ol>
+                    {HOW_IT_WORKS_STEPS.map((step) => (
+                      <li key={step}>{step}</li>
+                    ))}
+                  </ol>
+                </section>
+                <aside className="demo-notice">
+                  <strong>Public demo</strong>
+                  <p>
+                    Public demo: files are processed temporarily in memory and
+                    expire automatically. Please do not upload sensitive,
+                    personal, financial, or confidential data.
+                  </p>
+                  <a className="feedback-link" href={FEEDBACK_URL}>
+                    Found a bug? Send feedback
+                  </a>
+                </aside>
+              </div>
             </>
           ) : null}
 
@@ -221,9 +346,10 @@ export default function UploadWorkspace() {
                       {session.validation_status === "passed"
                         ? "Validation has passed for the current table."
                         : session.validation_status === "failed"
-                          ? "Validation found blockers. You can still download, but review the report first."
-                          : "Only approved changes are included. Formal validation has not run yet."}
+                          ? "Validation failed, but you can still download the CSV."
+                          : "Validation has not been run yet. You can still download the current CSV."}
                     </p>
+                    <p>This download includes only approved changes.</p>
                     {session.download_warnings.map((warning) => (
                       <div className="download-warning" key={warning.code}>
                         <strong>{warning.title}</strong>
@@ -241,9 +367,9 @@ export default function UploadWorkspace() {
                           ? `${session.applied_change_count} approved ${
                               session.applied_change_count === 1 ? "change is" : "changes are"
                             } included.`
-                          : "Nothing has been changed yet."}
+                          : "No cleaning has occurred yet."}
                       </strong>{" "}
-                      Pending changes are never included.
+                      Pending review changes are not included in downloads.
                     </p>
                   </aside>
                 </div>

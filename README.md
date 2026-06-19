@@ -16,12 +16,97 @@ The product direction is a guided workflow where users upload a spreadsheet,
 preview data issues, review suggested fixes, approve risky changes, validate
 the cleaned data, and download a trustworthy result.
 
+**Live Demo: Coming soon**
+
 This repository now provides the React product shell, temporary CSV/XLSX
 upload sessions, table previews, basic quality checks, CSV download, the
 guided manual cleaning workflow, risk-based review, undo/reset history, the
 cleaning engine, uploaded-file validation, validation ZIP exports, and the
 advanced evaluation suite. Phase 5 adds on-demand hybrid suggestions for
 uploaded files without sending raw table values to the optional model.
+
+## Features
+
+- Upload CSV or Excel files into temporary in-memory sessions.
+- Detect quality checks for missing values, duplicates, whitespace, numeric
+  text, empty columns, messy column names, and inconsistent dates.
+- Preview typed fixes through `change-previews` before any table mutation.
+- Apply low-risk fixes directly and send risky fixes to Review Changes.
+- Generate local or metadata-only model suggestions without sending raw table
+  values to the optional model.
+- Validate required columns, export a validation ZIP through
+  `validated-export`, and download the current approved CSV.
+- Try public sample CSV files without preparing your own spreadsheet.
+
+## Tech Stack
+
+- Backend: FastAPI, pandas, openpyxl, Pydantic, pytest.
+- Frontend: React, TypeScript, Vite, React Router, Vitest, Testing Library.
+- Packaging and deployment: Docker, Hugging Face Spaces, `openenv validate`.
+- Optional model path: OpenAI-compatible API configuration with
+  `API_BASE_URL`, `MODEL_NAME`, and `HF_TOKEN`.
+
+## Screenshots
+
+Current public demo landing view:
+
+![TabulaClean public demo landing view](docs/assets/screenshots/phase-7-empty-state.png)
+
+The Clean My File workspace now adds public demo copy, safety guidance, feedback,
+and sample buttons. The sample buttons load demo CSVs through the same upload,
+detection, preview, validation, and download workflow as user-uploaded files.
+
+## Local Setup
+
+Backend:
+
+```bash
+python3.11 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install --upgrade pip
+python3 -m pip install -r requirements-dev.txt
+python3 -m pytest -q
+uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+Frontend:
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+Production build:
+
+```bash
+cd frontend
+npm ci
+npm run build
+cd ..
+uvicorn server.app:app --host 0.0.0.0 --port 8000
+```
+
+## Test Commands
+
+```bash
+python3 -m pytest
+cd frontend && npm run check
+python3 inference.py
+docker build -t tabulaclean .
+openenv validate http://localhost:8000
+```
+
+## Deployment Note
+
+TabulaClean deploys as a Docker Hugging Face Space. Build from the root
+`Dockerfile`, set `HF_TOKEN` as a Space secret for optional model calls, and
+validate the live container with `openenv validate` once the Space is running.
+
+## Feedback
+
+Found a bug or rough edge? Please open
+[GitHub Issues](https://github.com/lilpookie404/tabulaclean/issues).
 
 ## Project Direction
 

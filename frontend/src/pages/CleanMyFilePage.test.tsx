@@ -95,7 +95,7 @@ describe("CleanMyFilePage", () => {
     vi.restoreAllMocks();
   });
 
-  it("renders the Guided Steps upload controls", () => {
+  it("renders the public demo empty state and upload controls", () => {
     render(<CleanMyFilePage />);
 
     expect(
@@ -108,11 +108,36 @@ describe("CleanMyFilePage", () => {
       screen.getByRole("heading", { name: "Start with your spreadsheet" })
     ).toBeInTheDocument();
     expect(
+      screen.getByText(
+        "Upload a CSV or Excel file to detect messy data, preview fixes, validate the cleaned result, and download a safer CSV."
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "How it works" })).toBeInTheDocument();
+    expect(screen.getByText("Upload a file")).toBeInTheDocument();
+    expect(screen.getByText("Review detected issues")).toBeInTheDocument();
+    expect(screen.getByText("Preview and apply fixes")).toBeInTheDocument();
+    expect(screen.getByText("Validate required columns")).toBeInTheDocument();
+    expect(screen.getByText("Download the cleaned CSV")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Public demo: files are processed temporarily in memory and expire automatically. Please do not upload sensitive, personal, financial, or confidential data."
+      )
+    ).toBeInTheDocument();
+    expect(
       screen.getByLabelText("Choose a CSV or XLSX file")
     ).toHaveAttribute("accept", ".csv,.xlsx");
     expect(
       screen.getByRole("button", { name: "Choose file" })
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Try sample contacts CSV" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Try sample sales CSV" })
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Found a bug? Send feedback" })
+    ).toHaveAttribute("href", "https://github.com/lilpookie404/tabulaclean/issues");
 
     const progress = screen.getByLabelText("Cleaning progress");
     expect(within(progress).getByText("1 · Upload")).toBeInTheDocument();
@@ -120,6 +145,41 @@ describe("CleanMyFilePage", () => {
     expect(within(progress).getByText("3 · Review fixes")).toBeInTheDocument();
     expect(within(progress).getByText("4 · Validate")).toBeInTheDocument();
     expect(within(progress).getByText("5 · Download")).toBeInTheDocument();
+  });
+
+  it("loads a sample contacts CSV through the existing upload flow", async () => {
+    const sampleSession = {
+      ...session,
+      filename: "messy-contacts.csv",
+      sheet_name: null
+    };
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(
+        new Response("name,email\n Maya Chen ,maya@example.test\n", {
+          status: 200,
+          headers: { "Content-Type": "text/csv" }
+        })
+      )
+      .mockResolvedValueOnce(jsonResponse(sampleSession, 201));
+    vi.stubGlobal("fetch", fetchMock);
+    render(<CleanMyFilePage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try sample contacts CSV" }));
+
+    expect(await screen.findByText("Here’s what we found.")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenNthCalledWith(1, "/samples/messy-contacts.csv");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/uploads",
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(FormData)
+      })
+    );
+    const uploadedBody = fetchMock.mock.calls[1][1].body as FormData;
+    const uploadedFile = uploadedBody.get("file") as File;
+    expect(uploadedFile).toBeInstanceOf(File);
+    expect(uploadedFile.name).toBe("messy-contacts.csv");
   });
 
   it("announces upload progress while parsing", async () => {
@@ -189,7 +249,16 @@ describe("CleanMyFilePage", () => {
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Email is required")).toBeChecked();
     expect(
-      screen.getByText("Nothing has been changed yet.")
+      screen.getByText("No cleaning has occurred yet.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("This download includes only approved changes.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Pending review changes are not included in downloads.")
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Validation has not been run yet.")
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Download current CSV" })
@@ -248,6 +317,9 @@ describe("CleanMyFilePage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Run validation" }));
 
     expect(await screen.findByText("Validation failed")).toBeInTheDocument();
+    expect(
+      screen.getByText("Validation failed, but you can still download the CSV.")
+    ).toBeInTheDocument();
     expect(screen.getByText("1 required cells are still blank.")).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Download validation ZIP" })
@@ -400,6 +472,9 @@ describe("CleanMyFilePage", () => {
     expect(
       screen.getByRole("button", { name: "Generate suggestions" })
     ).toBeDisabled();
+    expect(
+      screen.getByText("Pending review changes are not included in downloads.")
+    ).toBeInTheDocument();
   });
 
   it("opens a guided fix panel and applies a safe whitespace fix", async () => {

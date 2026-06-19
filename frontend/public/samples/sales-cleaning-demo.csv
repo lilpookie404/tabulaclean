@@ -1,0 +1,9 @@
+order_id,customer_name,status,amount,order_date,city,state,notes
+ORD-2001," Harbor Market "," shipped ","$120.50","2026/02/01"," Seattle ","WA","paid"
+ORD-2002,"Bright Studio","Processing","89.00","02/03/2026","Austin","TX",""
+ORD-2003,"Northline Co.","cancelled ","$45","3 Feb 2026"," Portland ","OR"," duplicate?"
+ORD-2003,"Northline Co.","cancelled ","$45","3 Feb 2026"," Portland ","OR"," duplicate?"
+ORD-2004,"Cedar Labs","SHIPPED"," 210.75 ","2026-02-04","Denver","CO","priority"
+ORD-2005,"River Supply","","$130.00","04/02/2026","","CA","missing city"
+ORD-2006,"Lumen Foods","processing","not available","2026.02.05","Chicago","IL","check amount"
+ORD-2007,"Oak & Pine"," shipped","315","Feb 06 2026","Boston","MA",""

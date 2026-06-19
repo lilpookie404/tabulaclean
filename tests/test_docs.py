@@ -27,6 +27,10 @@ def test_readme_contains_core_commands() -> None:
     assert "suggestions" in readme
     assert "metadata-only model" in readme
     assert "Phase 6" in readme
+    assert "Live Demo: Coming soon" in readme
+    assert "## Screenshots" in readme
+    assert "## Tech Stack" in readme
+    assert "GitHub Issues" in readme
 
 
 def test_project_direction_marks_phase_one_foundation_complete() -> None:

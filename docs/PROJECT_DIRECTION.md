@@ -68,5 +68,9 @@ model-evaluation and failure-cases routes remain available by direct URL for
 internal use, but the visible app journey now focuses on Clean My File and
 Review Changes.
 
+Phase 7 adds public demo polish for first-time reviewers: clearer empty-state
+copy, one-click sample CSVs, temporary-processing safety copy, GitHub Issues
+feedback, more explicit validation/download copy, and README updates.
+
 Permanent file storage, accounts, failure-case storage, full-table model calls,
 and model-evaluation redesign remain later product phases.

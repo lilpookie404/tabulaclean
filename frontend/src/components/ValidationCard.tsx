@@ -79,7 +79,7 @@ export default function ValidationCard({
             {result.summary.errors} errors · {result.summary.warnings} warnings
           </span>
         ) : (
-          <span>Current CSV is available, but no validation report exists yet.</span>
+          <span>Validation has not been run yet.</span>
         )}
       </div>
 
