@@ -138,6 +138,22 @@ describe("CleanMyFilePage", () => {
     expect(
       screen.getByRole("link", { name: "Found a bug? Send feedback" })
     ).toHaveAttribute("href", "https://github.com/lilpookie404/tabulaclean/issues");
+    expect(screen.getByRole("heading", { name: "TabulaClean" })).toBeInTheDocument();
+    expect(
+      screen.getByText("© 2026 TabulaClean. All rights reserved.")
+    ).toBeInTheDocument();
+    expect(screen.getByText("Designed and Built by Vaishnavi <3")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "GitHub" })
+    ).toHaveAttribute("href", "https://github.com/lilpookie404/tabulaclean");
+    expect(
+      screen.getByRole("link", { name: "Send feedback" })
+    ).toHaveAttribute("href", "https://github.com/lilpookie404/tabulaclean/issues");
+    expect(
+      screen
+        .getAllByRole("link", { name: "Explore the workspace" })
+        .every((link) => link.getAttribute("href") === "#workspace")
+    ).toBe(true);
 
     const progress = screen.getByLabelText("Cleaning progress");
     expect(within(progress).getByText("1 · Upload")).toBeInTheDocument();
